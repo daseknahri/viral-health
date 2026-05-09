@@ -26,7 +26,7 @@ Dr Purg Jr. is a GitHub-driven WordPress health-facts blog for English-speaking,
 2. In Coolify, create a Docker Compose application from the GitHub repo.
 3. Use only `docker-compose.yml`.
 4. Add the environment variables from `.env.example`.
-5. Assign `https://health.ibnbatoutaweb.com` to the `wordpress` service on port `80`. The compose file also exposes `SERVICE_FQDN_WORDPRESS_80=https://health.ibnbatoutaweb.com` for Coolify's proxy routing.
+5. Assign `https://health.ibnbatoutaweb.com` to the `wordpress` service on internal port `80`. The compose file also exposes `SERVICE_FQDN_WORDPRESS_80=https://health.ibnbatoutaweb.com` for Coolify's proxy routing. Do not add a production `ports:` mapping; Coolify can run many apps on internal port `80` because routing is domain-based.
 6. Keep the `seed` profile disabled for normal deploys. WordPress self-seeds only on first launch, before real content exists.
 7. After launch, keep `KEPOLI_FORCE_RESEED=0`. Set `KEPOLI_FORCE_RESEED=1` only for an intentional one-time repair, then turn it off again.
 8. Enable GitHub auto-deploy on push.

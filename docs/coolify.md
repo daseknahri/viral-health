@@ -4,9 +4,10 @@
 2. Set the branch to `main`.
 3. Use the root `docker-compose.yml` only.
 4. Let Coolify build the repo image `dr-purg-jr-wordpress`.
-5. Assign the domain `https://health.ibnbatoutaweb.com` to service `wordpress`, port `80`.
+5. Assign the domain `https://health.ibnbatoutaweb.com` to service `wordpress`, internal port `80`.
    - The compose file also defines `SERVICE_FQDN_WORDPRESS_80=https://health.ibnbatoutaweb.com` and `PORT=80` for Coolify's proxy routing.
    - Do not publish host port `80` with a `ports:` mapping in production; Coolify's proxy should route to the container's internal port `80`.
+   - It is normal for multiple Coolify apps to use internal port `80`; they do not collide because the proxy routes by domain.
 6. Add persistent volumes created by Compose:
    - `dr_purg_jr_db`
    - `dr_purg_jr_wordpress`
@@ -26,7 +27,7 @@ docker compose --profile seed run --rm wp-init
 
 Then set `KEPOLI_FORCE_RESEED=0` immediately after the repair. `wp-init` is intentionally one-shot and is hidden behind the `seed` Compose profile so Coolify does not treat its clean exit as a failed deployment. The public service to monitor is `wordpress`.
 
-Do not use `docker-compose.local.yml` in Coolify. That override publishes host port `8080` for local development and can fail on shared servers when the port is already allocated. Production should use domain routing to the `wordpress` service on container port `80`.
+Do not use `docker-compose.local.yml` in Coolify. That override publishes host port `8082` for local development and can fail on shared servers when the port is already allocated. Production should use domain routing to the `wordpress` service on container port `80`.
 
 If Coolify skips or stops the one-shot service during the first launch, the `wordpress` image already contains `seed` and `content`; the `kepoli-autoseed` MU plugin runs the seed once on the next request and activates the Dr Purg Jr. theme. Once `kepoli_seed_version` exists or real content exists, auto-seed stops and future deploys do not touch posts again.
 
