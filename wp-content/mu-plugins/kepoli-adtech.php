@@ -279,6 +279,14 @@ add_filter('robots_txt', static function (string $output, bool $public): string 
         return $output;
     }
 
+    if (!str_contains($output, 'facebookexternalhit')) {
+        $output .= "\nUser-agent: facebookexternalhit\nAllow: /\n";
+    }
+
+    if (!str_contains($output, 'Facebot')) {
+        $output .= "\nUser-agent: Facebot\nAllow: /\n";
+    }
+
     if (!str_contains($output, 'Sitemap:')) {
         $output .= "\nSitemap: " . home_url('/wp-sitemap.xml') . "\n";
     }
