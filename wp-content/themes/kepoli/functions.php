@@ -228,6 +228,16 @@ function kepoli_asset_uri(string $basename, string $fallback_extension = 'svg'):
     return $uri . "/assets/img/{$basename}.{$fallback_extension}";
 }
 
+function kepoli_asset_mime_type(string $url): string
+{
+    return match (strtolower(pathinfo((string) wp_parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION))) {
+        'png' => 'image/png',
+        'jpg', 'jpeg' => 'image/jpeg',
+        'webp' => 'image/webp',
+        default => 'image/svg+xml',
+    };
+}
+
 function kepoli_profile_asset(string $key, string $fallback): string
 {
     $asset = sanitize_file_name((string) kepoli_profile_value(['assets', $key], ''));
@@ -2929,7 +2939,8 @@ function kepoli_meta_description(): void
         printf("<meta name=\"google-site-verification\" content=\"%s\">\n", esc_attr($verification));
     }
 
-    printf("<link rel=\"icon\" href=\"%s\" type=\"image/svg+xml\">\n", esc_url(kepoli_asset_uri(kepoli_icon_asset())));
+    $icon_uri = kepoli_asset_uri(kepoli_icon_asset());
+    printf("<link rel=\"icon\" href=\"%s\" type=\"%s\">\n", esc_url($icon_uri), esc_attr(kepoli_asset_mime_type($icon_uri)));
 }
 add_action('wp_head', 'kepoli_meta_description', 2);
 
