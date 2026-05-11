@@ -255,7 +255,7 @@ function kepoli_asset_dimensions(string $basename): array
         'hero-homepage' => [1536, 1024],
         'dr-purg-jr-social-cover' => [1536, 1024],
         'writer-photo' => [1024, 1024],
-        'dr-purg-jr-wordmark' => [760, 360],
+        'dr-purg-jr-wordmark' => [1311, 264],
         'dr-purg-jr-icon' => [512, 512],
     ];
 

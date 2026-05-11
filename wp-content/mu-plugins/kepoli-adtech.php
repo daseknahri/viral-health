@@ -70,7 +70,7 @@ function kepoli_mu_asset_uri(string $key, string $fallback, string $fallback_ext
     $dir = get_template_directory();
     $uri = get_template_directory_uri();
 
-    foreach (['svg', 'png', 'jpg', 'jpeg', 'webp'] as $extension) {
+    foreach (['webp', 'jpg', 'jpeg', 'png', 'svg'] as $extension) {
         $path = "/assets/img/{$basename}.{$extension}";
         if (file_exists($dir . $path)) {
             return $uri . $path;
