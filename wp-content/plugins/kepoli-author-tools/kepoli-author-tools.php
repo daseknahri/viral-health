@@ -1177,21 +1177,25 @@ final class Food_Blog_Author_Tools
 
     private static function maybe_apply_suggested_category(int $post_id, string $kind): void
     {
+        $selected_ids = self::posted_category_ids();
+        $valid_selected_ids = [];
+        foreach ($selected_ids as $term_id) {
+            $term = get_term($term_id, 'category');
+            if ($term instanceof WP_Term && (int) $term->term_id !== 1) {
+                $valid_selected_ids[] = (int) $term->term_id;
+            }
+        }
+
+        if ($valid_selected_ids !== []) {
+            return;
+        }
+
         if ($kind === 'article') {
             $article_category_id = self::article_category_id();
             if ($article_category_id > 0) {
                 wp_set_post_categories($post_id, [$article_category_id], false);
             }
             return;
-        }
-
-        $selected_ids = self::posted_category_ids();
-        foreach ($selected_ids as $term_id) {
-            $term = get_term($term_id, 'category');
-            if ($term instanceof WP_Term && !self::is_article_category_term($term) && (int) $term->term_id !== 1) {
-                wp_set_post_categories($post_id, [$term_id], false);
-                return;
-            }
         }
 
         $current_terms = get_the_category($post_id);
