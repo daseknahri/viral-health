@@ -30,6 +30,7 @@ MONETAG_ONCLICK_MINUTES=0
 MONETAG_PUSH_MINUTES=0
 MONETAG_POST_ONLY=1
 MONETAG_INSTALL_CHECK=0
+MONETAG_VERIFICATION=
 MONETAG_SW_JS_BASE64=
 ```
 
@@ -37,7 +38,7 @@ In `baseline`, the theme does not render Monetag page-load ad formats. Keep `MON
 
 Use this sequence:
 
-1. Verify the website in Monetag using their dashboard flow, then remove temporary verification-only variables from Coolify.
+1. Verify the website in Monetag using their dashboard flow. For meta-tag verification, set `MONETAG_VERIFICATION` to the Monetag `content` value only, redeploy, click verify in Monetag, then clear it after verification if you want the production head clean.
 2. Prefer individual zones over Multitag when you want control. Add the exact tags as base64 snippets in `MONETAG_INPAGE_PUSH_BASE64`, `MONETAG_VIGNETTE_BASE64`, `MONETAG_ONCLICK_BASE64`, or `MONETAG_PUSH_BASE64`.
 3. If Monetag gives you a `sw.js` file, place it at `content/monetag/sw.js` in the repo, or encode it and add the value to `MONETAG_SW_JS_BASE64`.
 4. Set `MONETAG_ENABLE=1` only when the channel is ready.

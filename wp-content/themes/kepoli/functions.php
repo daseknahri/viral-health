@@ -2939,6 +2939,11 @@ function kepoli_meta_description(): void
         printf("<meta name=\"google-site-verification\" content=\"%s\">\n", esc_attr($verification));
     }
 
+    $monetag_verification = kepoli_env('MONETAG_VERIFICATION');
+    if ($monetag_verification !== '') {
+        printf("<meta name=\"monetag\" content=\"%s\">\n", esc_attr($monetag_verification));
+    }
+
     $icon_uri = kepoli_asset_uri(kepoli_icon_asset());
     printf("<link rel=\"icon\" href=\"%s\" type=\"%s\">\n", esc_url($icon_uri), esc_attr(kepoli_asset_mime_type($icon_uri)));
 }

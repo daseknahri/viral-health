@@ -137,6 +137,7 @@ function checkEnvContract() {
     ['MONETAG_PUSH_MINUTES', '0'],
     ['MONETAG_POST_ONLY', '1'],
     ['MONETAG_INSTALL_CHECK', '0'],
+    ['MONETAG_VERIFICATION', ''],
     ['MONETAG_SW_JS_BASE64', ''],
   ]);
 
@@ -170,6 +171,7 @@ function checkComposeContract() {
     'MONETAG_PUSH_MINUTES',
     'MONETAG_POST_ONLY',
     'MONETAG_INSTALL_CHECK',
+    'MONETAG_VERIFICATION',
     'MONETAG_SW_JS_BASE64',
   ]) {
     if (occurrences(compose, key) < 2) {
@@ -198,6 +200,7 @@ function checkThemeGate() {
     /function\s+kepoli_monetag_should_render\s*\(/,
     /function\s+kepoli_monetag_head\s*\(/,
     /MONETAG_ENABLE/,
+    /MONETAG_VERIFICATION/,
     /MONETAG_INPAGE_PUSH_BASE64/,
     /MONETAG_VIGNETTE_BASE64/,
     /MONETAG_ONCLICK_BASE64/,
@@ -316,6 +319,7 @@ function checkDocs() {
     /MONETAG_ONCLICK_MINUTES=0/,
     /MONETAG_PUSH_MINUTES=0/,
     /MONETAG_INSTALL_CHECK=0/,
+    /MONETAG_VERIFICATION=/,
     /MONETAG_SW_JS_BASE64=/,
     /sw\.js/,
     /content\/monetag\/sw\.js/,
