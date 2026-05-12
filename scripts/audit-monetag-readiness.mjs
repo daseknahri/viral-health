@@ -258,10 +258,9 @@ function checkServiceWorkerGate() {
     /Cache-Control:\s*no-store/,
   ]);
 
-  requireIncludes('bundled Monetag service worker', bundledSw, [
-    /self\.options/,
-    /zoneId/,
-    /importScripts\('https:\/\//,
+  requireIncludes('bundled Monetag service worker placeholder', bundledSw, [
+    /Monetag Push Notifications are disabled/,
+    /dedicated Dr Purg Jr\. push zone/,
   ]);
 }
 

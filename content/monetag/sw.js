@@ -1,6 +1,2 @@
-self.options = {
-    "domain": "5gvci.com",
-    "zoneId": 10947955
-}
-self.lary = ""
-importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
+/* Monetag Push Notifications are disabled for Dr Purg Jr.
+   Replace this placeholder only when a dedicated Dr Purg Jr. push zone is intentionally tested. */

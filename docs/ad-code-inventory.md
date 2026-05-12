@@ -25,13 +25,14 @@ DISPLAY_AD_SIDEBAR_BASE64=
 DISPLAY_AD_HEADER_BASE64=
 ```
 
-Use this Monetag baseline. Keep push, popunder, and vignette disabled until tracking is working and we intentionally test them.
+Use this Monetag first test. Keep push, popunder, and vignette disabled until tracking is working and we intentionally test them.
 
 ```env
+KT_AD_MODE=medium
 MONETAG_ENABLE=1
 MONETAG_POST_ONLY=1
 MONETAG_INSTALL_CHECK=0
-MONETAG_INPAGE_PUSH_BASE64=PHNjcmlwdD4oZnVuY3Rpb24ocyl7cy5kYXRhc2V0LnpvbmU9Jzk5MTIwNjUnLHMuc3JjPSdodHRwczovL25hcDVrLmNvbS90YWcubWluLmpzJ30pKFtkb2N1bWVudC5kb2N1bWVudEVsZW1lbnQsIGRvY3VtZW50LmJvZHldLmZpbHRlcihCb29sZWFuKS5wb3AoKS5hcHBlbmRDaGlsZChkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdzY3JpcHQnKSkpPC9zY3JpcHQ+
+MONETAG_INPAGE_PUSH_BASE64=PHNjcmlwdD4oZnVuY3Rpb24ocyl7cy5kYXRhc2V0LnpvbmU9JzEwOTk4NTIzJyxzLnNyYz0naHR0cHM6Ly9uYXA1ay5jb20vdGFnLm1pbi5qcyd9KShbZG9jdW1lbnQuZG9jdW1lbnRFbGVtZW50LCBkb2N1bWVudC5ib2R5XS5maWx0ZXIoQm9vbGVhbikucG9wKCkuYXBwZW5kQ2hpbGQoZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnc2NyaXB0JykpKTwvc2NyaXB0Pg==
 MONETAG_INPAGE_PUSH_MINUTES=0
 MONETAG_VIGNETTE_BASE64=
 MONETAG_VIGNETTE_MINUTES=0
@@ -47,10 +48,10 @@ MONETAG_SW_JS_BASE64=
 Only add these when testing a specific strategy.
 
 ```env
-MONETAG_ONCLICK_BASE64=PHNjcmlwdD4oZnVuY3Rpb24ocyl7cy5kYXRhc2V0LnpvbmU9JzEwOTUzOTMzJyxzLnNyYz0naHR0cHM6Ly9hbDVzbS5jb20vdGFnLm1pbi5qcyd9KShbZG9jdW1lbnQuZG9jdW1lbnRFbGVtZW50LCBkb2N1bWVudC5ib2R5XS5maWx0ZXIoQm9vbGVhbikucG9wKCkuYXBwZW5kQ2hpbGQoZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnc2NyaXB0JykpKTwvc2NyaXB0Pg==
-MONETAG_VIGNETTE_BASE64=PHNjcmlwdD4oZnVuY3Rpb24ocyl7cy5kYXRhc2V0LnpvbmU9Jzk5MTIwNjYnLHMuc3JjPSdodHRwczovL242d3htLmNvbS92aWduZXR0ZS5taW4uanMnfSkoW2RvY3VtZW50LmRvY3VtZW50RWxlbWVudCwgZG9jdW1lbnQuYm9keV0uZmlsdGVyKEJvb2xlYW4pLnBvcCgpLmFwcGVuZENoaWxkKGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ3NjcmlwdCcpKSk8L3NjcmlwdD4=
-MONETAG_PUSH_BASE64=PHNjcmlwdCBzcmM9Imh0dHBzOi8vNWd2Y2kuY29tL2FjdC9maWxlcy90YWcubWluLmpzP3o9OTkxMTU4OSIgZGF0YS1jZmFzeW5jPSJmYWxzZSIgYXN5bmM+PC9zY3JpcHQ+
-MONETAG_SW_JS_BASE64=c2VsZi5vcHRpb25zID0gewogICAgImRvbWFpbiI6ICJjb3VwaGFpdGh1cGgubmV0IiwKICAgICJ6b25lSWQiOiA5OTExNTg5Cn0Kc2VsZi5sYXJ5ID0gIiIKaW1wb3J0U2NyaXB0cygnaHR0cHM6Ly9jb3VwaGFpdGh1cGgubmV0L2FjdC9maWxlcy9zZXJ2aWNlLXdvcmtlci5taW4uanM/cj1zdycp
+MONETAG_ONCLICK_BASE64=
+MONETAG_VIGNETTE_BASE64=
+MONETAG_PUSH_BASE64=
+MONETAG_SW_JS_BASE64=
 ```
 
 Direct link, not an env value yet:
@@ -185,36 +186,25 @@ Reserve these:
 ### In-Page Push
 
 ```html
-<script>(function(s){s.dataset.zone='9912065',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
+<script>(function(s){s.dataset.zone='10998523',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
 ```
 
 ### OnClick Popunder
 
-```html
-<script>(function(s){s.dataset.zone='10953933',s.src='https://al5sm.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
-```
+No current Dr Purg Jr. code. Keep `MONETAG_ONCLICK_BASE64` empty until we intentionally create and test a dedicated zone.
 
 ### Vignette Banner
 
-```html
-<script>(function(s){s.dataset.zone='9912066',s.src='https://n6wxm.com/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
-```
+No current Dr Purg Jr. code. Keep `MONETAG_VIGNETTE_BASE64` empty until we intentionally create and test a dedicated zone.
 
 ### Push Notifications
 
-```html
-<script src="https://5gvci.com/act/files/tag.min.js?z=9911589" data-cfasync="false" async></script>
-```
+No current Dr Purg Jr. code. Keep `MONETAG_PUSH_BASE64` empty until we intentionally create and test a dedicated zone.
 
 Push service worker code:
 
 ```js
-self.options = {
-    "domain": "couphaithuph.net",
-    "zoneId": 9911589
-}
-self.lary = ""
-importScripts('https://couphaithuph.net/act/files/service-worker.min.js?r=sw')
+// Add Monetag's Dr Purg Jr. service worker code here only when testing Push Notifications.
 ```
 
 The theme/MU plugin serves the service worker at:
@@ -226,8 +216,8 @@ https://health.ibnbatoutaweb.com/sw.js
 To enable push later, set both:
 
 ```env
-MONETAG_PUSH_BASE64=PHNjcmlwdCBzcmM9Imh0dHBzOi8vNWd2Y2kuY29tL2FjdC9maWxlcy90YWcubWluLmpzP3o9OTkxMTU4OSIgZGF0YS1jZmFzeW5jPSJmYWxzZSIgYXN5bmM+PC9zY3JpcHQ+
-MONETAG_SW_JS_BASE64=c2VsZi5vcHRpb25zID0gewogICAgImRvbWFpbiI6ICJjb3VwaGFpdGh1cGgubmV0IiwKICAgICJ6b25lSWQiOiA5OTExNTg5Cn0Kc2VsZi5sYXJ5ID0gIiIKaW1wb3J0U2NyaXB0cygnaHR0cHM6Ly9jb3VwaGFpdGh1cGgubmV0L2FjdC9maWxlcy9zZXJ2aWNlLXdvcmtlci5taW4uanM/cj1zdycp
+MONETAG_PUSH_BASE64=
+MONETAG_SW_JS_BASE64=
 ```
 
 Keep push disabled until we intentionally test it, because push subscriptions can feel aggressive and may hurt user trust.
