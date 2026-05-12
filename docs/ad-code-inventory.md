@@ -11,11 +11,11 @@ Use this as the current controlled display stack.
 ```env
 DISPLAY_ADS_ENABLE=1
 DISPLAY_ADS_PROVIDER=adsterra
-DISPLAY_AD_AFTER_INTRO_BASE64=PHNjcmlwdD4KICBhdE9wdGlvbnMgPSB7CiAgICAna2V5JyA6ICcyNjJhOTZjMmNkMTVkOThiNDljMWY2NTE0YTM1YzcxOCcsCiAgICAnZm9ybWF0JyA6ICdpZnJhbWUnLAogICAgJ2hlaWdodCcgOiAyNTAsCiAgICAnd2lkdGgnIDogMzAwLAogICAgJ3BhcmFtcycgOiB7fQogIH07Cjwvc2NyaXB0Pgo8c2NyaXB0IHNyYz0iaHR0cHM6Ly93d3cuaGlnaHBlcmZvcm1hbmNlZm9ybWF0LmNvbS8yNjJhOTZjMmNkMTVkOThiNDljMWY2NTE0YTM1YzcxOC9pbnZva2UuanMiPjwvc2NyaXB0Pg==
-DISPLAY_AD_READING_OPTION_BASE64=PHNjcmlwdCBhc3luYz0iYXN5bmMiIGRhdGEtY2Zhc3luYz0iZmFsc2UiIHNyYz0iaHR0cHM6Ly9wbDI5MzE4MDA3LnByb2ZpdGFibGVjcG1yYXRlbmV0d29yay5jb20vMjNhNmE0NDliYTg3YmU4ZGNjMjM1ZjFjMzhlMmNkZDIvaW52b2tlLmpzIj48L3NjcmlwdD4KPGRpdiBpZD0iY29udGFpbmVyLTIzYTZhNDQ5YmE4N2JlOGRjYzIzNWYxYzM4ZTJjZGQyIj48L2Rpdj4=
-DISPLAY_AD_MID_CONTENT_BASE64=PHNjcmlwdD4KICBhdE9wdGlvbnMgPSB7CiAgICAna2V5JyA6ICdhNDdlZDk1N2JhYWZlZDhkMWFkODhiOTJiZGEwOTA4ZScsCiAgICAnZm9ybWF0JyA6ICdpZnJhbWUnLAogICAgJ2hlaWdodCcgOiA2MCwKICAgICd3aWR0aCcgOiA0NjgsCiAgICAncGFyYW1zJyA6IHt9CiAgfTsKPC9zY3JpcHQ+CjxzY3JpcHQgc3JjPSJodHRwczovL3d3dy5oaWdocGVyZm9ybWFuY2Vmb3JtYXQuY29tL2E0N2VkOTU3YmFhZmVkOGQxYWQ4OGI5MmJkYTA5MDhlL2ludm9rZS5qcyI+PC9zY3JpcHQ+
-DISPLAY_AD_PART_CONTINUE_BASE64=PHNjcmlwdD4KICBhdE9wdGlvbnMgPSB7CiAgICAna2V5JyA6ICc4ZGU3ODJlYTA5ZjNjY2M2N2U4Y2ZmMjQxOTQ5NWZhNCcsCiAgICAnZm9ybWF0JyA6ICdpZnJhbWUnLAogICAgJ2hlaWdodCcgOiA1MCwKICAgICd3aWR0aCcgOiAzMjAsCiAgICAncGFyYW1zJyA6IHt9CiAgfTsKPC9zY3JpcHQ+CjxzY3JpcHQgc3JjPSJodHRwczovL3d3dy5oaWdocGVyZm9ybWFuY2Vmb3JtYXQuY29tLzhkZTc4MmVhMDlmM2NjYzY3ZThjZmYyNDE5NDk1ZmE0L2ludm9rZS5qcyI+PC9zY3JpcHQ+
-DISPLAY_AD_BELOW_CONTENT_BASE64=PHNjcmlwdD4KICBhdE9wdGlvbnMgPSB7CiAgICAna2V5JyA6ICc4ZGU3ODJlYTA5ZjNjY2M2N2U4Y2ZmMjQxOTQ5NWZhNCcsCiAgICAnZm9ybWF0JyA6ICdpZnJhbWUnLAogICAgJ2hlaWdodCcgOiA1MCwKICAgICd3aWR0aCcgOiAzMjAsCiAgICAncGFyYW1zJyA6IHt9CiAgfTsKPC9zY3JpcHQ+CjxzY3JpcHQgc3JjPSJodHRwczovL3d3dy5oaWdocGVyZm9ybWFuY2Vmb3JtYXQuY29tLzhkZTc4MmVhMDlmM2NjYzY3ZThjZmYyNDE5NDk1ZmE0L2ludm9rZS5qcyI+PC9zY3JpcHQ+
+DISPLAY_AD_AFTER_INTRO_BASE64=PHNjcmlwdD4KICBhdE9wdGlvbnMgPSB7CiAgICAna2V5JyA6ICc1N2YyNWI0OGM1ZjQzNDcxMDFiNWQ3YTQ5NjZjNmZlZScsCiAgICAnZm9ybWF0JyA6ICdpZnJhbWUnLAogICAgJ2hlaWdodCcgOiAyNTAsCiAgICAnd2lkdGgnIDogMzAwLAogICAgJ3BhcmFtcycgOiB7fQogIH07Cjwvc2NyaXB0Pgo8c2NyaXB0IHNyYz0iaHR0cHM6Ly93d3cuaGlnaHBlcmZvcm1hbmNlZm9ybWF0LmNvbS81N2YyNWI0OGM1ZjQzNDcxMDFiNWQ3YTQ5NjZjNmZlZS9pbnZva2UuanMiPjwvc2NyaXB0Pg==
+DISPLAY_AD_READING_OPTION_BASE64=PHNjcmlwdCBhc3luYz0iYXN5bmMiIGRhdGEtY2Zhc3luYz0iZmFsc2UiIHNyYz0iaHR0cHM6Ly9wbDI5NDMwMzQ1LnByb2ZpdGFibGVjcG1yYXRlbmV0d29yay5jb20vYTI0ZDk2NzRmZTUzYzk3NWRiYzE1MTJkMGRjN2U3MzcvaW52b2tlLmpzIj48L3NjcmlwdD4KPGRpdiBpZD0iY29udGFpbmVyLWEyNGQ5Njc0ZmU1M2M5NzVkYmMxNTEyZDBkYzdlNzM3Ij48L2Rpdj4=
+DISPLAY_AD_MID_CONTENT_BASE64=PHNjcmlwdD4KICBhdE9wdGlvbnMgPSB7CiAgICAna2V5JyA6ICc4YzFjMzAwZDY1NzVkNzdiNmY1N2Y3MjU5NWNmNjM2YicsCiAgICAnZm9ybWF0JyA6ICdpZnJhbWUnLAogICAgJ2hlaWdodCcgOiA2MCwKICAgICd3aWR0aCcgOiA0NjgsCiAgICAncGFyYW1zJyA6IHt9CiAgfTsKPC9zY3JpcHQ+CjxzY3JpcHQgc3JjPSJodHRwczovL3d3dy5oaWdocGVyZm9ybWFuY2Vmb3JtYXQuY29tLzhjMWMzMDBkNjU3NWQ3N2I2ZjU3ZjcyNTk1Y2Y2MzZiL2ludm9rZS5qcyI+PC9zY3JpcHQ+
+DISPLAY_AD_PART_CONTINUE_BASE64=
+DISPLAY_AD_BELOW_CONTENT_BASE64=PHNjcmlwdD4KICBhdE9wdGlvbnMgPSB7CiAgICAna2V5JyA6ICc2ZTMzZDNmOTMwZTBmZGJkZjc5ZGE0NjZhODcyZjJhMycsCiAgICAnZm9ybWF0JyA6ICdpZnJhbWUnLAogICAgJ2hlaWdodCcgOiA1MCwKICAgICd3aWR0aCcgOiAzMjAsCiAgICAncGFyYW1zJyA6IHt9CiAgfTsKPC9zY3JpcHQ+CjxzY3JpcHQgc3JjPSJodHRwczovL3d3dy5oaWdocGVyZm9ybWFuY2Vmb3JtYXQuY29tLzZlMzNkM2Y5MzBlMGZkYmRmNzlkYTQ2NmE4NzJmMmEzL2ludm9rZS5qcyI+PC9zY3JpcHQ+
 DISPLAY_AD_STICKY_BOTTOM_BASE64=
 DISPLAY_AD_STICKY_BOTTOM_MIN_SECONDS=35
 DISPLAY_AD_STICKY_BOTTOM_MIN_SCROLL=30
@@ -69,7 +69,7 @@ Recommended current mapping:
 - `DISPLAY_AD_AFTER_INTRO_BASE64`: Adsterra `300x250`.
 - `DISPLAY_AD_READING_OPTION_BASE64`: Adsterra `Native Banner`.
 - `DISPLAY_AD_MID_CONTENT_BASE64`: Adsterra `468x60`.
-- `DISPLAY_AD_PART_CONTINUE_BASE64`: Adsterra `320x50`.
+- `DISPLAY_AD_PART_CONTINUE_BASE64`: reserved; posts are not paginated yet.
 - `DISPLAY_AD_BELOW_CONTENT_BASE64`: Adsterra `320x50`.
 - `DISPLAY_AD_STICKY_BOTTOM_BASE64`: Adsterra `320x50`, mobile-only delayed sticky test.
 - `MONETAG_INPAGE_PUSH_BASE64`: Monetag `In-Page Push`.
@@ -87,8 +87,8 @@ Reserve these:
 ### Native Banner
 
 ```html
-<script async="async" data-cfasync="false" src="https://pl29318007.profitablecpmratenetwork.com/23a6a449ba87be8dcc235f1c38e2cdd2/invoke.js"></script>
-<div id="container-23a6a449ba87be8dcc235f1c38e2cdd2"></div>
+<script async="async" data-cfasync="false" src="https://pl29430345.profitablecpmratenetwork.com/a24d9674fe53c975dbc1512d0dc7e737/invoke.js"></script>
+<div id="container-a24d9674fe53c975dbc1512d0dc7e737"></div>
 ```
 
 ### Banner 320x50
@@ -96,14 +96,14 @@ Reserve these:
 ```html
 <script>
   atOptions = {
-    'key' : '8de782ea09f3ccc67e8cff2419495fa4',
+    'key' : '6e33d3f930e0fdbdf79da466a872f2a3',
     'format' : 'iframe',
     'height' : 50,
     'width' : 320,
     'params' : {}
   };
 </script>
-<script src="https://www.highperformanceformat.com/8de782ea09f3ccc67e8cff2419495fa4/invoke.js"></script>
+<script src="https://www.highperformanceformat.com/6e33d3f930e0fdbdf79da466a872f2a3/invoke.js"></script>
 ```
 
 ### Banner 160x300
@@ -111,14 +111,14 @@ Reserve these:
 ```html
 <script>
   atOptions = {
-    'key' : '5e4160ee6d9611bfefc0016e383296bf',
+    'key' : '042dac5bc1c6cd3341251a23ac78519c',
     'format' : 'iframe',
     'height' : 300,
     'width' : 160,
     'params' : {}
   };
 </script>
-<script src="https://www.highperformanceformat.com/5e4160ee6d9611bfefc0016e383296bf/invoke.js"></script>
+<script src="https://www.highperformanceformat.com/042dac5bc1c6cd3341251a23ac78519c/invoke.js"></script>
 ```
 
 ### Banner 468x60
@@ -126,14 +126,14 @@ Reserve these:
 ```html
 <script>
   atOptions = {
-    'key' : 'a47ed957baafed8d1ad88b92bda0908e',
+    'key' : '8c1c300d6575d77b6f57f72595cf636b',
     'format' : 'iframe',
     'height' : 60,
     'width' : 468,
     'params' : {}
   };
 </script>
-<script src="https://www.highperformanceformat.com/a47ed957baafed8d1ad88b92bda0908e/invoke.js"></script>
+<script src="https://www.highperformanceformat.com/8c1c300d6575d77b6f57f72595cf636b/invoke.js"></script>
 ```
 
 ### Banner 300x250
@@ -141,14 +141,14 @@ Reserve these:
 ```html
 <script>
   atOptions = {
-    'key' : '262a96c2cd15d98b49c1f6514a35c718',
+    'key' : '57f25b48c5f4347101b5d7a4966c6fee',
     'format' : 'iframe',
     'height' : 250,
     'width' : 300,
     'params' : {}
   };
 </script>
-<script src="https://www.highperformanceformat.com/262a96c2cd15d98b49c1f6514a35c718/invoke.js"></script>
+<script src="https://www.highperformanceformat.com/57f25b48c5f4347101b5d7a4966c6fee/invoke.js"></script>
 ```
 
 ### Banner 160x600
@@ -156,14 +156,14 @@ Reserve these:
 ```html
 <script>
   atOptions = {
-    'key' : '5fc971ff3d357fd062ffc754ef5e1116',
+    'key' : 'da98a57e5b28442c5f088aedd90bd726',
     'format' : 'iframe',
     'height' : 600,
     'width' : 160,
     'params' : {}
   };
 </script>
-<script src="https://www.highperformanceformat.com/5fc971ff3d357fd062ffc754ef5e1116/invoke.js"></script>
+<script src="https://www.highperformanceformat.com/da98a57e5b28442c5f088aedd90bd726/invoke.js"></script>
 ```
 
 ### Banner 728x90
@@ -171,14 +171,14 @@ Reserve these:
 ```html
 <script>
   atOptions = {
-    'key' : 'ffb55b3c459422a448ce5484b9ecb1ff',
+    'key' : '58bfe9cee4d316b04256c8bb3f2dba84',
     'format' : 'iframe',
     'height' : 90,
     'width' : 728,
     'params' : {}
   };
 </script>
-<script src="https://www.highperformanceformat.com/ffb55b3c459422a448ce5484b9ecb1ff/invoke.js"></script>
+<script src="https://www.highperformanceformat.com/58bfe9cee4d316b04256c8bb3f2dba84/invoke.js"></script>
 ```
 
 ## Raw Monetag codes
