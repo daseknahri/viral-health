@@ -54,7 +54,9 @@ Pinterest pin: 1000x1500
 OG / Reddit preview: 1200x630
 ```
 
-The generated image uses the source image fitted inside the target canvas with a soft blurred background, so faces and text are less likely to be cropped. The Facebook and Pinterest variants are assigned to their platform media fields. The OG / Reddit variant is used by the theme's Open Graph image filters when the public post page is scraped.
+The generated image uses the source image fitted inside the target canvas with a soft blurred background, so faces and text are less likely to be cropped. The Facebook and Pinterest variants are assigned to their platform media fields. The OG / Reddit variant is assigned to the Reddit media field and is used by the theme's Open Graph image filters when the public post page is scraped.
+
+The Reddit media field is mostly a workflow aid. For link posts, Reddit normally pulls the preview image from the article's Open Graph tags. The field gives you a visible reference and a copyable image URL for manual image-post workflows.
 
 ## Safety
 

@@ -43,7 +43,7 @@ final class Dr_Purg_Social_Syndicator
             'label' => 'OG / Reddit preview',
             'width' => 1200,
             'height' => 630,
-            'assign_meta' => '_dpj_social_og_media_id',
+            'assign_meta' => ['_dpj_social_og_media_id', '_dpj_social_reddit_media_id'],
             'generated_meta' => '_dpj_social_og_media_id',
         ],
     ];
@@ -78,6 +78,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_reddit_title',
             '_dpj_social_reddit_body',
             '_dpj_social_reddit_link',
+            '_dpj_social_reddit_media_id',
             '_dpj_social_reddit_rules_notes',
             '_dpj_social_reddit_status',
             '_dpj_social_og_media_id',
@@ -422,6 +423,9 @@ final class Dr_Purg_Social_Syndicator
 
         update_post_meta($post_id, '_dpj_social_facebook_media_id', isset($_POST['facebook_media_id']) ? (string) absint($_POST['facebook_media_id']) : '0');
         update_post_meta($post_id, '_dpj_social_pinterest_media_id', isset($_POST['pinterest_media_id']) ? (string) absint($_POST['pinterest_media_id']) : '0');
+        $reddit_media_id = isset($_POST['reddit_media_id']) ? absint($_POST['reddit_media_id']) : 0;
+        update_post_meta($post_id, '_dpj_social_reddit_media_id', (string) $reddit_media_id);
+        update_post_meta($post_id, '_dpj_social_og_media_id', (string) $reddit_media_id);
         update_post_meta($post_id, '_dpj_social_use_featured_image', isset($_POST['use_featured_image']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_redirect_after_publish', isset($_POST['redirect_after_publish']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_do_not_repost', isset($_POST['do_not_repost']) ? '1' : '0');
@@ -470,6 +474,7 @@ final class Dr_Purg_Social_Syndicator
         self::maybe_set_meta($post_id, '_dpj_social_reddit_title', $title);
         self::maybe_set_meta($post_id, '_dpj_social_reddit_body', trim($intro . "\n\n" . $permalink));
         self::maybe_set_meta($post_id, '_dpj_social_reddit_link', $permalink);
+        self::maybe_set_meta($post_id, '_dpj_social_reddit_media_id', (string) $featured_id);
         self::maybe_set_meta($post_id, '_dpj_social_reddit_rules_notes', '');
         self::maybe_set_meta($post_id, '_dpj_social_reddit_status', self::STATUS_NEEDS);
 
@@ -957,6 +962,8 @@ final class Dr_Purg_Social_Syndicator
     private static function render_reddit_section(int $post_id): void
     {
         $status = self::platform_status($post_id, 'reddit');
+        $media_id = (int) get_post_meta($post_id, '_dpj_social_reddit_media_id', true);
+        $media_url = $media_id > 0 ? wp_get_attachment_url($media_id) : '';
         ?>
         <section class="dpj-social-card dpj-platform dpj-platform--reddit">
             <header class="dpj-platform__header">
@@ -969,9 +976,20 @@ final class Dr_Purg_Social_Syndicator
             </div>
             <?php self::render_input('reddit_title', __('Post title', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_reddit_title', true)); ?>
             <?php self::render_textarea('reddit_body', __('Body', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_reddit_body', true), 6, 'dpj-reddit-body'); ?>
+            <?php self::render_media_picker('reddit_media_id', __('Media / OG preview image', 'dr-purg-social-syndicator'), $media_id); ?>
+            <?php if (is_string($media_url) && $media_url !== '') : ?>
+                <label class="dpj-field">
+                    <span><?php esc_html_e('Image URL', 'dr-purg-social-syndicator'); ?></span>
+                    <input type="url" id="dpj-reddit-image-url" value="<?php echo esc_url($media_url); ?>" readonly>
+                </label>
+            <?php endif; ?>
+            <p class="dpj-social-note"><?php esc_html_e('For link posts, Reddit usually pulls the image from the article Open Graph tags. Use this field as your visible reference or for image-post/manual workflows.', 'dr-purg-social-syndicator'); ?></p>
             <?php self::render_textarea('reddit_rules_notes', __('Rules notes', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_reddit_rules_notes', true), 3, 'dpj-reddit-notes'); ?>
             <p class="dpj-platform__actions">
                 <button class="button" type="button" data-dpj-copy="#dpj-reddit-body"><?php esc_html_e('Copy body', 'dr-purg-social-syndicator'); ?></button>
+                <?php if (is_string($media_url) && $media_url !== '') : ?>
+                    <button class="button" type="button" data-dpj-copy="#dpj-reddit-image-url"><?php esc_html_e('Copy image URL', 'dr-purg-social-syndicator'); ?></button>
+                <?php endif; ?>
                 <button class="button" type="submit" name="dpj_social_editor_action" value="mark_reddit_posted"><?php esc_html_e('Mark Reddit posted', 'dr-purg-social-syndicator'); ?></button>
             </p>
         </section>
@@ -1045,6 +1063,7 @@ final class Dr_Purg_Social_Syndicator
             (int) get_post_thumbnail_id($post_id),
             (int) get_post_meta($post_id, '_dpj_social_facebook_media_id', true),
             (int) get_post_meta($post_id, '_dpj_social_pinterest_media_id', true),
+            (int) get_post_meta($post_id, '_dpj_social_reddit_media_id', true),
         ];
 
         foreach ($candidates as $candidate_id) {
@@ -1097,7 +1116,9 @@ final class Dr_Purg_Social_Syndicator
             $attachment_id = (int) $attachment_id;
             update_post_meta($post_id, $config['generated_meta'], (string) $attachment_id);
             if (!empty($config['assign_meta'])) {
-                update_post_meta($post_id, $config['assign_meta'], (string) $attachment_id);
+                foreach ((array) $config['assign_meta'] as $assign_meta_key) {
+                    update_post_meta($post_id, (string) $assign_meta_key, (string) $attachment_id);
+                }
             }
 
             $generated[$variant] = $attachment_id;
