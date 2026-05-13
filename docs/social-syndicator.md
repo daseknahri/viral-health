@@ -7,7 +7,7 @@ The Social Syndicator plugin turns every article into a structured social packag
 1. Write and publish a post.
 2. WordPress opens `Social Queue -> Social Editor` for that post.
 3. Review the source title, intro, featured image, and canonical URL.
-4. Click `Generate social images` to create platform-sized JPG copies from the source image.
+4. Click `Generate local social cards` to create platform-sized JPG copies from the source image.
 5. Complete the Facebook, Pinterest, and Reddit sections.
 6. Click `Post to Facebook` only after the Facebook preview is ready.
 7. Use copy buttons and `Mark posted` for Pinterest or Reddit manual work.
@@ -55,7 +55,9 @@ Pinterest pin: 1000x1500
 OG / Reddit preview: 1200x630
 ```
 
-The generated image uses the source image fitted inside the target canvas with a soft blurred background, so faces and text are less likely to be cropped. The Facebook and Pinterest variants are assigned to their platform media fields. The OG / Reddit variant is assigned to the Reddit media field and is used by the theme's Open Graph image filters when the public post page is scraped.
+The local converter is the preferred daily workflow because it uses no external API, no image-generation quota, and no prompt token budget. It makes a full-bleed crop from the featured/source image, then can add a short readable overlay from the `Overlay text` field. Keep that overlay short, usually a curiosity hook of 8 to 12 words.
+
+The Facebook and Pinterest variants are assigned to their platform media fields. The OG / Reddit variant is assigned to the Reddit media field and is used by the theme's Open Graph image filters when the public post page is scraped.
 
 The Reddit media field is mostly a workflow aid. For link posts, Reddit normally pulls the preview image from the article's Open Graph tags. The field gives you a visible reference and a copyable image URL for manual image-post workflows.
 
@@ -79,6 +81,7 @@ These dimensions keep the correct platform aspect ratios while staying inside th
 - Use `Reset Facebook posting lock` only when you intentionally want to repost.
 - Failed API responses are saved in the Facebook section.
 - Generated social images are new attachments; the original featured image is not modified.
+- Local social cards are generated from reviewed source imagery and optional overlay text; disable the overlay checkbox when the image already contains important text.
 - Pixazo images are generated only after a user clicks the button, and API errors stay inside the editor.
 - Reddit remains manual-only to avoid account and subreddit spam risk.
 - Text-generation helpers are still future work; Pixazo is image-generation only.

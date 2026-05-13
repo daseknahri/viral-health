@@ -132,7 +132,11 @@ function checkPluginContract() {
     /AI Image Generator/,
     /generate_social_images_for_post/,
     /render_social_image_jpeg/,
-    /copy_blurred_cover_background/,
+    /copy_cover_image/,
+    /draw_social_overlay/,
+    /font_path/,
+    /_dpj_social_local_overlay_text/,
+    /_dpj_social_local_overlay_enable/,
     /_dpj_social_generated_facebook_media_id/,
     /_dpj_social_generated_pinterest_media_id/,
     /reddit_media_id/,
@@ -141,7 +145,7 @@ function checkPluginContract() {
     /wp_insert_attachment/,
     /wp_generate_attachment_metadata/,
     /imagejpeg/,
-    /Generate social images/,
+    /Generate local social cards/,
   ]);
 
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
@@ -180,6 +184,9 @@ function checkDocs() {
     /Post to Facebook/,
     /Social image converter/,
     /Pixazo image testing/,
+    /Generate local social cards/,
+    /Overlay text/,
+    /no external API/,
     /819x1024/,
     /683x1024/,
     /1024x538/,

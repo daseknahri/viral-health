@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.3.0
+ * Version: 0.3.1
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.3.0';
+    private const VERSION = '0.3.1';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const PIXAZO_SDXL_FREE_ENDPOINT = 'https://gateway.pixazo.ai/getImage/v1/getSDXLImage';
     private const QUEUE_SLUG = 'dr-purg-social-queue';
@@ -87,6 +87,10 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_pixazo_negative_prompt',
             '_dpj_social_pixazo_last_error',
             '_dpj_social_pixazo_last_run',
+            '_dpj_social_local_overlay_text',
+            '_dpj_social_local_overlay_enable',
+            '_dpj_social_image_generation_last_error',
+            '_dpj_social_image_generation_last_run',
         ],
         'pinterest' => [
             '_dpj_social_pinterest_title',
@@ -417,6 +421,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_facebook_first_comment' => 'facebook_first_comment',
             '_dpj_social_pixazo_prompt' => 'pixazo_prompt',
             '_dpj_social_pixazo_negative_prompt' => 'pixazo_negative_prompt',
+            '_dpj_social_local_overlay_text' => 'local_overlay_text',
             '_dpj_social_pinterest_title' => 'pinterest_title',
             '_dpj_social_pinterest_description' => 'pinterest_description',
             '_dpj_social_pinterest_board' => 'pinterest_board',
@@ -433,7 +438,7 @@ final class Dr_Purg_Social_Syndicator
             $value = isset($_POST[$field_name]) ? wp_unslash((string) $_POST[$field_name]) : '';
             if (str_ends_with($meta_key, '_link') || str_ends_with($meta_key, '_url')) {
                 $value = esc_url_raw(trim($value));
-            } elseif (str_contains($meta_key, 'body') || str_contains($meta_key, 'summary') || str_contains($meta_key, 'description') || str_contains($meta_key, 'comment') || str_contains($meta_key, 'notes') || str_contains($meta_key, 'prompt')) {
+            } elseif (str_contains($meta_key, 'body') || str_contains($meta_key, 'summary') || str_contains($meta_key, 'description') || str_contains($meta_key, 'comment') || str_contains($meta_key, 'notes') || str_contains($meta_key, 'prompt') || str_contains($meta_key, 'overlay')) {
                 $value = sanitize_textarea_field($value);
             } else {
                 $value = sanitize_text_field($value);
@@ -463,6 +468,7 @@ final class Dr_Purg_Social_Syndicator
         update_post_meta($post_id, '_dpj_social_use_featured_image', isset($_POST['use_featured_image']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_redirect_after_publish', isset($_POST['redirect_after_publish']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_do_not_repost', isset($_POST['do_not_repost']) ? '1' : '0');
+        update_post_meta($post_id, '_dpj_social_local_overlay_enable', isset($_POST['local_overlay_enable']) ? '1' : '0');
 
         if (self::facebook_status($post_id) !== self::STATUS_POSTED) {
             update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_DRAFT);
@@ -497,6 +503,8 @@ final class Dr_Purg_Social_Syndicator
         self::maybe_set_meta($post_id, '_dpj_social_facebook_status', self::STATUS_NEEDS);
         self::maybe_set_meta($post_id, '_dpj_social_pixazo_prompt', self::default_pixazo_prompt($post_id));
         self::maybe_set_meta($post_id, '_dpj_social_pixazo_negative_prompt', self::default_pixazo_negative_prompt());
+        self::maybe_set_meta($post_id, '_dpj_social_local_overlay_text', self::default_local_overlay_text($post_id));
+        self::maybe_set_meta($post_id, '_dpj_social_local_overlay_enable', '1');
 
         self::maybe_set_meta($post_id, '_dpj_social_pinterest_title', $title);
         self::maybe_set_meta($post_id, '_dpj_social_pinterest_description', $intro);
@@ -565,6 +573,13 @@ final class Dr_Purg_Social_Syndicator
     private static function default_pixazo_negative_prompt(): string
     {
         return 'text, words, captions, logo, watermark, gore, blood, surgery, scary hospital, panic, before and after, miracle cure, pills spilling, deformed hands, extra fingers, distorted face, blurry, low quality, spammy clickbait';
+    }
+
+    private static function default_local_overlay_text(int $post_id): string
+    {
+        $hook = trim((string) get_post_meta($post_id, '_dpj_social_facebook_hook', true));
+        $text = $hook !== '' ? $hook : get_the_title($post_id);
+        return self::short_overlay_text($text);
     }
 
     private static function pixazo_generated_meta_key(string $variant): string
@@ -665,7 +680,7 @@ final class Dr_Purg_Social_Syndicator
             'facebook_posted' => __('Facebook post sent and logged.', 'dr-purg-social-syndicator'),
             'facebook_failed' => __('Facebook posting failed. Review the error in the Facebook section.', 'dr-purg-social-syndicator'),
             'facebook_reset' => __('Facebook posting lock reset. You can post this package again.', 'dr-purg-social-syndicator'),
-            'images_generated' => __('Social images generated and assigned.', 'dr-purg-social-syndicator'),
+            'images_generated' => __('Local social cards generated and assigned.', 'dr-purg-social-syndicator'),
             'images_failed' => __('Social image generation failed. Review the converter message.', 'dr-purg-social-syndicator'),
             'pixazo_generated' => __('Pixazo images generated and assigned.', 'dr-purg-social-syndicator'),
             'pixazo_failed' => __('Pixazo image generation failed. Review the AI image generator message.', 'dr-purg-social-syndicator'),
@@ -974,17 +989,22 @@ final class Dr_Purg_Social_Syndicator
         <section class="dpj-social-card dpj-platform dpj-platform--image-converter">
             <header class="dpj-platform__header">
                 <h2><?php esc_html_e('Social Image Converter', 'dr-purg-social-syndicator'); ?></h2>
-                <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="generate_social_images"><?php esc_html_e('Generate social images', 'dr-purg-social-syndicator'); ?></button>
+                <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="generate_social_images"><?php esc_html_e('Generate local social cards', 'dr-purg-social-syndicator'); ?></button>
             </header>
             <?php if ($last_error !== '') : ?>
                 <div class="notice notice-error inline"><p><?php echo esc_html($last_error); ?></p></div>
             <?php endif; ?>
             <p class="dpj-social-note">
-                <?php esc_html_e('Creates separate JPG copies for Facebook, Pinterest, and OG/Reddit previews. The original image is never changed.', 'dr-purg-social-syndicator'); ?>
+                <?php esc_html_e('Creates full-bleed JPG social cards from the source image, sized for Facebook, Pinterest, and OG/Reddit. This uses no external API and never changes the original image.', 'dr-purg-social-syndicator'); ?>
                 <?php if ($source_label !== '') : ?>
                     <?php printf(esc_html__(' Source: %s', 'dr-purg-social-syndicator'), esc_html($source_label)); ?>
                 <?php endif; ?>
             </p>
+            <?php self::render_textarea('local_overlay_text', __('Overlay text', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_local_overlay_text', true), 2, 'dpj-local-overlay-text'); ?>
+            <label class="dpj-check">
+                <input type="checkbox" name="local_overlay_enable" value="1" <?php checked(get_post_meta($post_id, '_dpj_social_local_overlay_enable', true), '1'); ?>>
+                <?php esc_html_e('Add a short readable text overlay to the generated cards.', 'dr-purg-social-syndicator'); ?>
+            </label>
             <div class="dpj-generated-grid">
                 <?php foreach (self::SOCIAL_IMAGE_VARIANTS as $variant => $config) : ?>
                     <?php
@@ -1414,9 +1434,11 @@ final class Dr_Purg_Social_Syndicator
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
 
+        $overlay_text = self::local_overlay_text($post_id);
+        $use_overlay = (string) get_post_meta($post_id, '_dpj_social_local_overlay_enable', true) === '1';
         $generated = [];
         foreach (self::SOCIAL_IMAGE_VARIANTS as $variant => $config) {
-            $attachment_id = self::create_social_image_variant($post_id, $source_id, $source_path, $variant, $config);
+            $attachment_id = self::create_social_image_variant($post_id, $source_id, $source_path, $variant, $config, $overlay_text, $use_overlay);
             if (is_wp_error($attachment_id)) {
                 update_post_meta($post_id, '_dpj_social_image_generation_last_error', $attachment_id->get_error_message());
                 return $attachment_id;
@@ -1439,7 +1461,7 @@ final class Dr_Purg_Social_Syndicator
         return $generated;
     }
 
-    private static function create_social_image_variant(int $post_id, int $source_id, string $source_path, string $variant, array $config)
+    private static function create_social_image_variant(int $post_id, int $source_id, string $source_path, string $variant, array $config, string $overlay_text, bool $use_overlay)
     {
         $uploads = wp_upload_dir();
         if (!empty($uploads['error'])) {
@@ -1462,9 +1484,9 @@ final class Dr_Purg_Social_Syndicator
             $post_slug = 'post-' . $post_id;
         }
 
-        $filename = wp_unique_filename($upload_dir, sprintf('%s-%s-%dx%d.jpg', $post_slug, sanitize_key($variant), $width, $height));
+        $filename = wp_unique_filename($upload_dir, sprintf('%s-local-card-%s-%dx%d.jpg', $post_slug, sanitize_key($variant), $width, $height));
         $target_path = trailingslashit($upload_dir) . $filename;
-        $rendered = self::render_social_image_jpeg($source_path, $target_path, $width, $height);
+        $rendered = self::render_social_image_jpeg($source_path, $target_path, $width, $height, $overlay_text, $use_overlay, $variant);
         if (is_wp_error($rendered)) {
             return $rendered;
         }
@@ -1472,7 +1494,7 @@ final class Dr_Purg_Social_Syndicator
         $attachment_id = wp_insert_attachment(wp_slash([
             'guid' => trailingslashit((string) ($uploads['url'] ?? '')) . $filename,
             'post_mime_type' => 'image/jpeg',
-            'post_title' => sprintf('%1$s - %2$s %3$dx%4$d', get_the_title($post_id), (string) $config['label'], $width, $height),
+            'post_title' => sprintf('%1$s - Local social card %2$s %3$dx%4$d', get_the_title($post_id), (string) $config['label'], $width, $height),
             'post_status' => 'inherit',
             'post_parent' => $post_id,
         ]), $target_path, $post_id, true);
@@ -1494,6 +1516,7 @@ final class Dr_Purg_Social_Syndicator
             get_the_title($post_id)
         );
         update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt));
+        update_post_meta($attachment_id, '_dpj_social_generated_provider', 'local-card');
         update_post_meta($attachment_id, '_dpj_social_generated_variant', sanitize_key($variant));
         update_post_meta($attachment_id, '_dpj_social_generated_source_id', (string) $source_id);
         update_post_meta($attachment_id, '_dpj_social_generated_size', $width . 'x' . $height);
@@ -1501,7 +1524,7 @@ final class Dr_Purg_Social_Syndicator
         return $attachment_id;
     }
 
-    private static function render_social_image_jpeg(string $source_path, string $target_path, int $target_width, int $target_height)
+    private static function render_social_image_jpeg(string $source_path, string $target_path, int $target_width, int $target_height, string $overlay_text = '', bool $use_overlay = true, string $variant = '')
     {
         if (!function_exists('imagecreatetruecolor')) {
             return new WP_Error('dpj_social_gd_missing', __('The PHP GD image extension is required to generate social image copies.', 'dr-purg-social-syndicator'));
@@ -1531,11 +1554,14 @@ final class Dr_Purg_Social_Syndicator
         }
 
         imageinterlace($canvas, true);
+        imagealphablending($canvas, true);
         $background = imagecolorallocate($canvas, 238, 245, 240);
         imagefilledrectangle($canvas, 0, 0, $target_width, $target_height, $background);
 
-        self::copy_blurred_cover_background($canvas, $source, $source_width, $source_height, $target_width, $target_height);
-        self::copy_contained_foreground($canvas, $source, $source_width, $source_height, $target_width, $target_height);
+        self::copy_cover_image($canvas, $source, $source_width, $source_height, $target_width, $target_height);
+        if ($use_overlay) {
+            self::draw_social_overlay($canvas, $overlay_text, $target_width, $target_height, $variant);
+        }
 
         $saved = imagejpeg($canvas, $target_path, 86);
         imagedestroy($canvas);
@@ -1546,6 +1572,207 @@ final class Dr_Purg_Social_Syndicator
         }
 
         return true;
+    }
+
+    private static function local_overlay_text(int $post_id): string
+    {
+        $text = trim((string) get_post_meta($post_id, '_dpj_social_local_overlay_text', true));
+        if ($text === '') {
+            $text = self::default_local_overlay_text($post_id);
+        }
+
+        return self::short_overlay_text($text);
+    }
+
+    private static function short_overlay_text(string $text): string
+    {
+        $text = wp_strip_all_tags($text);
+        $text = (string) preg_replace('~https?://\S+~i', '', $text);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
+        $text = trim((string) preg_replace('/\s+/', ' ', $text));
+        if ($text === '') {
+            return '';
+        }
+
+        $trimmed = wp_trim_words($text, 12, '');
+        return trim($trimmed, " \t\n\r\0\x0B-.,:;|");
+    }
+
+    private static function copy_cover_image($canvas, $source, int $source_width, int $source_height, int $target_width, int $target_height): void
+    {
+        $source_ratio = $source_width / $source_height;
+        $target_ratio = $target_width / $target_height;
+
+        if ($source_ratio > $target_ratio) {
+            $crop_height = $source_height;
+            $crop_width = max(1, min($source_width, (int) round($source_height * $target_ratio)));
+            $source_x = (int) floor(($source_width - $crop_width) / 2);
+            $source_y = 0;
+        } else {
+            $crop_width = $source_width;
+            $crop_height = max(1, min($source_height, (int) round($source_width / $target_ratio)));
+            $source_x = 0;
+            $source_y = (int) floor(($source_height - $crop_height) / 2);
+        }
+
+        imagecopyresampled($canvas, $source, 0, 0, $source_x, $source_y, $target_width, $target_height, $crop_width, $crop_height);
+    }
+
+    private static function draw_social_overlay($canvas, string $text, int $target_width, int $target_height, string $variant): void
+    {
+        $headline = self::short_overlay_text($text);
+        if ($headline === '') {
+            return;
+        }
+
+        $panel_height = max((int) round($target_height * ($variant === 'og' ? 0.34 : 0.30)), (int) round($target_width * 0.20));
+        $panel_y = max(0, $target_height - $panel_height);
+        for ($y = $panel_y; $y < $target_height; $y += 4) {
+            $progress = ($y - $panel_y) / max(1, $panel_height);
+            $alpha = max(34, min(82, (int) round(82 - ($progress * 44))));
+            $shade = imagecolorallocatealpha($canvas, 17, 24, 27, $alpha);
+            if ($shade !== false) {
+                imagefilledrectangle($canvas, 0, $y, $target_width - 1, min($target_height - 1, $y + 4), $shade);
+            }
+        }
+
+        $accent = imagecolorallocate($canvas, 142, 42, 79);
+        if ($accent !== false) {
+            $accent_height = max(6, (int) round($target_height * 0.006));
+            imagefilledrectangle($canvas, 0, $panel_y, $target_width - 1, $panel_y + $accent_height, $accent);
+        }
+
+        $bold_font = self::font_path(true);
+        $regular_font = self::font_path(false);
+        if ($bold_font !== '' && function_exists('imagettftext') && function_exists('imagettfbbox')) {
+            self::draw_ttf_social_text($canvas, $headline, $target_width, $panel_y, $variant, $bold_font, $regular_font !== '' ? $regular_font : $bold_font);
+            return;
+        }
+
+        self::draw_fallback_social_text($canvas, $headline, $target_width, $panel_y);
+    }
+
+    private static function draw_ttf_social_text($canvas, string $headline, int $target_width, int $panel_y, string $variant, string $bold_font, string $regular_font): void
+    {
+        $margin = max(34, (int) round($target_width * 0.055));
+        $max_width = max(120, $target_width - ($margin * 2));
+        $white = imagecolorallocate($canvas, 255, 255, 255);
+        $muted = imagecolorallocate($canvas, 213, 232, 224);
+        $brand_size = max(18, (int) round($target_width * 0.026));
+        $headline_size = max(34, (int) round($target_width * ($variant === 'og' ? 0.056 : 0.067)));
+        $max_lines = $variant === 'og' ? 2 : 3;
+
+        do {
+            $lines = self::wrap_ttf_lines($headline, $bold_font, $headline_size, $max_width);
+            if (count($lines) <= $max_lines) {
+                break;
+            }
+            $headline_size -= 4;
+        } while ($headline_size > 28);
+
+        $lines = self::limit_ttf_lines($lines, $max_lines, $bold_font, $headline_size, $max_width);
+        $brand_y = $panel_y + max(34, (int) round($margin * 0.78));
+        $headline_y = $brand_y + $headline_size + max(18, (int) round($margin * 0.32));
+        $line_height = (int) round($headline_size * 1.14);
+
+        imagettftext($canvas, $brand_size, 0, $margin, $brand_y, $muted !== false ? $muted : $white, $regular_font, 'DR PURG JR.');
+        foreach ($lines as $line) {
+            imagettftext($canvas, $headline_size, 0, $margin, $headline_y, $white, $bold_font, $line);
+            $headline_y += $line_height;
+        }
+    }
+
+    private static function wrap_ttf_lines(string $text, string $font, int $font_size, int $max_width): array
+    {
+        $words = preg_split('/\s+/', $text) ?: [];
+        $lines = [];
+        $current = '';
+
+        foreach ($words as $word) {
+            $candidate = trim($current . ' ' . $word);
+            if ($candidate === '') {
+                continue;
+            }
+
+            if ($current !== '' && self::ttf_text_width($candidate, $font, $font_size) > $max_width) {
+                $lines[] = $current;
+                $current = $word;
+                continue;
+            }
+
+            $current = $candidate;
+        }
+
+        if ($current !== '') {
+            $lines[] = $current;
+        }
+
+        return $lines;
+    }
+
+    private static function limit_ttf_lines(array $lines, int $max_lines, string $font, int $font_size, int $max_width): array
+    {
+        if (count($lines) <= $max_lines) {
+            return $lines;
+        }
+
+        $limited = array_slice($lines, 0, $max_lines);
+        $last = trim((string) end($limited));
+        while ($last !== '' && self::ttf_text_width($last . '...', $font, $font_size) > $max_width) {
+            $last = trim((string) preg_replace('/\s+\S+$/', '', $last));
+        }
+
+        $limited[$max_lines - 1] = $last !== '' ? $last . '...' : '...';
+        return $limited;
+    }
+
+    private static function ttf_text_width(string $text, string $font, int $font_size): int
+    {
+        $box = imagettfbbox($font_size, 0, $font, $text);
+        if (!is_array($box)) {
+            return 0;
+        }
+
+        return abs((int) $box[2] - (int) $box[0]);
+    }
+
+    private static function draw_fallback_social_text($canvas, string $headline, int $target_width, int $panel_y): void
+    {
+        $margin = max(22, (int) round($target_width * 0.04));
+        $white = imagecolorallocate($canvas, 255, 255, 255);
+        $muted = imagecolorallocate($canvas, 213, 232, 224);
+        imagestring($canvas, 5, $margin, $panel_y + 24, 'DR PURG JR.', $muted !== false ? $muted : $white);
+
+        $line_width = max(18, (int) floor(($target_width - ($margin * 2)) / 10));
+        $lines = array_slice(explode("\n", wordwrap($headline, $line_width, "\n", true)), 0, 3);
+        $y = $panel_y + 54;
+        foreach ($lines as $line) {
+            imagestring($canvas, 5, $margin, $y, $line, $white);
+            $y += 22;
+        }
+    }
+
+    private static function font_path(bool $bold): string
+    {
+        $paths = $bold
+            ? [
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf',
+                'C:\\Windows\\Fonts\\arialbd.ttf',
+            ]
+            : [
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf',
+                'C:\\Windows\\Fonts\\arial.ttf',
+            ];
+
+        foreach ($paths as $path) {
+            if (is_string($path) && is_readable($path)) {
+                return $path;
+            }
+        }
+
+        return '';
     }
 
     private static function load_gd_image(string $path, string $mime)
