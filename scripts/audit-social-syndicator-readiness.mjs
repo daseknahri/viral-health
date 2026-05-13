@@ -134,6 +134,7 @@ function checkPluginContract() {
     /render_social_image_jpeg/,
     /copy_cover_image/,
     /draw_social_overlay/,
+    /draw_scaled_string/,
     /font_path/,
     /_dpj_social_local_overlay_text/,
     /_dpj_social_local_overlay_enable/,

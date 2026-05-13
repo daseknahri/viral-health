@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.3.1
+ * Version: 0.3.2
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.3.1';
+    private const VERSION = '0.3.2';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const PIXAZO_SDXL_FREE_ENDPOINT = 'https://gateway.pixazo.ai/getImage/v1/getSDXLImage';
     private const QUEUE_SLUG = 'dr-purg-social-queue';
@@ -1625,20 +1625,21 @@ final class Dr_Purg_Social_Syndicator
             return;
         }
 
-        $panel_height = max((int) round($target_height * ($variant === 'og' ? 0.34 : 0.30)), (int) round($target_width * 0.20));
+        $panel_height = max((int) round($target_height * ($variant === 'og' ? 0.38 : 0.36)), (int) round($target_width * 0.26));
         $panel_y = max(0, $target_height - $panel_height);
-        for ($y = $panel_y; $y < $target_height; $y += 4) {
-            $progress = ($y - $panel_y) / max(1, $panel_height);
-            $alpha = max(34, min(82, (int) round(82 - ($progress * 44))));
-            $shade = imagecolorallocatealpha($canvas, 17, 24, 27, $alpha);
-            if ($shade !== false) {
-                imagefilledrectangle($canvas, 0, $y, $target_width - 1, min($target_height - 1, $y + 4), $shade);
-            }
+        $panel = imagecolorallocatealpha($canvas, 12, 18, 20, 26);
+        if ($panel !== false) {
+            imagefilledrectangle($canvas, 0, $panel_y, $target_width - 1, $target_height - 1, $panel);
+        }
+
+        $panel_shadow = imagecolorallocatealpha($canvas, 0, 0, 0, 58);
+        if ($panel_shadow !== false) {
+            imagefilledrectangle($canvas, 0, $panel_y, $target_width - 1, min($target_height - 1, $panel_y + (int) round($panel_height * 0.12)), $panel_shadow);
         }
 
         $accent = imagecolorallocate($canvas, 142, 42, 79);
         if ($accent !== false) {
-            $accent_height = max(6, (int) round($target_height * 0.006));
+            $accent_height = max(10, (int) round($target_height * 0.011));
             imagefilledrectangle($canvas, 0, $panel_y, $target_width - 1, $panel_y + $accent_height, $accent);
         }
 
@@ -1649,17 +1650,18 @@ final class Dr_Purg_Social_Syndicator
             return;
         }
 
-        self::draw_fallback_social_text($canvas, $headline, $target_width, $panel_y);
+        self::draw_fallback_social_text($canvas, $headline, $target_width, $target_height, $panel_y, $variant);
     }
 
     private static function draw_ttf_social_text($canvas, string $headline, int $target_width, int $panel_y, string $variant, string $bold_font, string $regular_font): void
     {
-        $margin = max(34, (int) round($target_width * 0.055));
+        $margin = max(42, (int) round($target_width * 0.062));
         $max_width = max(120, $target_width - ($margin * 2));
         $white = imagecolorallocate($canvas, 255, 255, 255);
         $muted = imagecolorallocate($canvas, 213, 232, 224);
-        $brand_size = max(18, (int) round($target_width * 0.026));
-        $headline_size = max(34, (int) round($target_width * ($variant === 'og' ? 0.056 : 0.067)));
+        $shadow = imagecolorallocatealpha($canvas, 0, 0, 0, 58);
+        $brand_size = max(24, (int) round($target_width * 0.036));
+        $headline_size = max(54, (int) round($target_width * ($variant === 'og' ? 0.078 : 0.092)));
         $max_lines = $variant === 'og' ? 2 : 3;
 
         do {
@@ -1667,16 +1669,22 @@ final class Dr_Purg_Social_Syndicator
             if (count($lines) <= $max_lines) {
                 break;
             }
-            $headline_size -= 4;
-        } while ($headline_size > 28);
+            $headline_size -= 5;
+        } while ($headline_size > 44);
 
         $lines = self::limit_ttf_lines($lines, $max_lines, $bold_font, $headline_size, $max_width);
-        $brand_y = $panel_y + max(34, (int) round($margin * 0.78));
-        $headline_y = $brand_y + $headline_size + max(18, (int) round($margin * 0.32));
-        $line_height = (int) round($headline_size * 1.14);
+        $brand_y = $panel_y + max(48, (int) round($margin * 0.92));
+        $headline_y = $brand_y + $headline_size + max(28, (int) round($margin * 0.38));
+        $line_height = (int) round($headline_size * 1.08);
 
+        if ($shadow !== false) {
+            imagettftext($canvas, $brand_size, 0, $margin + 3, $brand_y + 3, $shadow, $regular_font, 'DR PURG JR.');
+        }
         imagettftext($canvas, $brand_size, 0, $margin, $brand_y, $muted !== false ? $muted : $white, $regular_font, 'DR PURG JR.');
         foreach ($lines as $line) {
+            if ($shadow !== false) {
+                imagettftext($canvas, $headline_size, 0, $margin + 4, $headline_y + 5, $shadow, $bold_font, $line);
+            }
             imagettftext($canvas, $headline_size, 0, $margin, $headline_y, $white, $bold_font, $line);
             $headline_y += $line_height;
         }
@@ -1736,20 +1744,78 @@ final class Dr_Purg_Social_Syndicator
         return abs((int) $box[2] - (int) $box[0]);
     }
 
-    private static function draw_fallback_social_text($canvas, string $headline, int $target_width, int $panel_y): void
+    private static function draw_fallback_social_text($canvas, string $headline, int $target_width, int $target_height, int $panel_y, string $variant): void
     {
-        $margin = max(22, (int) round($target_width * 0.04));
-        $white = imagecolorallocate($canvas, 255, 255, 255);
-        $muted = imagecolorallocate($canvas, 213, 232, 224);
-        imagestring($canvas, 5, $margin, $panel_y + 24, 'DR PURG JR.', $muted !== false ? $muted : $white);
+        $margin = max(44, (int) round($target_width * 0.06));
+        $font = 5;
+        $brand_scale = max(3, (int) round($target_width / 310));
+        $headline_scale = max(6, (int) round($target_width / ($variant === 'og' ? 205 : 185)));
+        $max_lines = $variant === 'og' ? 2 : 3;
+        $max_chars = max(12, (int) floor(($target_width - ($margin * 2)) / (imagefontwidth($font) * $headline_scale)));
+        $lines = self::fallback_wrap_lines($headline, $max_chars, $max_lines);
+        $brand_height = imagefontheight($font) * $brand_scale;
+        $headline_height = imagefontheight($font) * $headline_scale;
+        $line_gap = max(10, (int) round($headline_height * 0.18));
+        $y = $panel_y + max(46, (int) round($target_height * 0.04));
 
-        $line_width = max(18, (int) floor(($target_width - ($margin * 2)) / 10));
-        $lines = array_slice(explode("\n", wordwrap($headline, $line_width, "\n", true)), 0, 3);
-        $y = $panel_y + 54;
+        self::draw_scaled_string($canvas, 'DR PURG JR.', $font, $margin + 3, $y + 3, $brand_scale, [0, 0, 0, 62]);
+        self::draw_scaled_string($canvas, 'DR PURG JR.', $font, $margin, $y, $brand_scale, [213, 232, 224, 0]);
+
+        $y += $brand_height + max(30, (int) round($headline_height * 0.34));
         foreach ($lines as $line) {
-            imagestring($canvas, 5, $margin, $y, $line, $white);
-            $y += 22;
+            self::draw_scaled_string($canvas, $line, $font, $margin + 5, $y + 6, $headline_scale, [0, 0, 0, 58]);
+            self::draw_scaled_string($canvas, $line, $font, $margin, $y, $headline_scale, [255, 255, 255, 0]);
+            $y += $headline_height + $line_gap;
         }
+    }
+
+    private static function fallback_wrap_lines(string $headline, int $max_chars, int $max_lines): array
+    {
+        $lines = explode("\n", wordwrap($headline, $max_chars, "\n", true));
+        $lines = array_values(array_filter(array_map('trim', $lines)));
+        if (count($lines) <= $max_lines) {
+            return $lines;
+        }
+
+        $limited = array_slice($lines, 0, $max_lines);
+        $last = trim((string) end($limited));
+        while (strlen($last . '...') > $max_chars && $last !== '') {
+            $last = trim((string) preg_replace('/\s+\S+$/', '', $last));
+        }
+        $limited[$max_lines - 1] = $last !== '' ? $last . '...' : '...';
+
+        return $limited;
+    }
+
+    private static function draw_scaled_string($canvas, string $text, int $font, int $x, int $y, int $scale, array $rgba): void
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return;
+        }
+
+        $source_width = max(1, imagefontwidth($font) * strlen($text));
+        $source_height = max(1, imagefontheight($font));
+        $text_canvas = imagecreatetruecolor($source_width, $source_height);
+        if (!$text_canvas) {
+            return;
+        }
+
+        imagealphablending($text_canvas, false);
+        imagesavealpha($text_canvas, true);
+        $transparent = imagecolorallocatealpha($text_canvas, 0, 0, 0, 127);
+        imagefilledrectangle($text_canvas, 0, 0, $source_width, $source_height, $transparent);
+        imagealphablending($text_canvas, true);
+        $color = imagecolorallocatealpha(
+            $text_canvas,
+            max(0, min(255, (int) ($rgba[0] ?? 255))),
+            max(0, min(255, (int) ($rgba[1] ?? 255))),
+            max(0, min(255, (int) ($rgba[2] ?? 255))),
+            max(0, min(127, (int) ($rgba[3] ?? 0)))
+        );
+        imagestring($text_canvas, $font, 0, 0, $text, $color);
+        imagecopyresampled($canvas, $text_canvas, $x, $y, 0, 0, $source_width * $scale, $source_height * $scale, $source_width, $source_height);
+        imagedestroy($text_canvas);
     }
 
     private static function font_path(bool $bold): string
