@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.3.2
+ * Version: 0.3.3
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.3.2';
+    private const VERSION = '0.3.3';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const PIXAZO_SDXL_FREE_ENDPOINT = 'https://gateway.pixazo.ai/getImage/v1/getSDXLImage';
     private const QUEUE_SLUG = 'dr-purg-social-queue';
@@ -1620,73 +1620,109 @@ final class Dr_Purg_Social_Syndicator
 
     private static function draw_social_overlay($canvas, string $text, int $target_width, int $target_height, string $variant): void
     {
-        $headline = self::short_overlay_text($text);
+        $headline = self::overlay_display_text(self::short_overlay_text($text));
         if ($headline === '') {
             return;
-        }
-
-        $panel_height = max((int) round($target_height * ($variant === 'og' ? 0.38 : 0.36)), (int) round($target_width * 0.26));
-        $panel_y = max(0, $target_height - $panel_height);
-        $panel = imagecolorallocatealpha($canvas, 12, 18, 20, 26);
-        if ($panel !== false) {
-            imagefilledrectangle($canvas, 0, $panel_y, $target_width - 1, $target_height - 1, $panel);
-        }
-
-        $panel_shadow = imagecolorallocatealpha($canvas, 0, 0, 0, 58);
-        if ($panel_shadow !== false) {
-            imagefilledrectangle($canvas, 0, $panel_y, $target_width - 1, min($target_height - 1, $panel_y + (int) round($panel_height * 0.12)), $panel_shadow);
-        }
-
-        $accent = imagecolorallocate($canvas, 142, 42, 79);
-        if ($accent !== false) {
-            $accent_height = max(10, (int) round($target_height * 0.011));
-            imagefilledrectangle($canvas, 0, $panel_y, $target_width - 1, $panel_y + $accent_height, $accent);
         }
 
         $bold_font = self::font_path(true);
         $regular_font = self::font_path(false);
         if ($bold_font !== '' && function_exists('imagettftext') && function_exists('imagettfbbox')) {
-            self::draw_ttf_social_text($canvas, $headline, $target_width, $panel_y, $variant, $bold_font, $regular_font !== '' ? $regular_font : $bold_font);
+            self::draw_ttf_social_text($canvas, $headline, $target_width, $target_height, $variant, $bold_font, $regular_font !== '' ? $regular_font : $bold_font);
             return;
         }
 
-        self::draw_fallback_social_text($canvas, $headline, $target_width, $target_height, $panel_y, $variant);
+        self::draw_fallback_social_text($canvas, $headline, $target_width, $target_height, $variant);
     }
 
-    private static function draw_ttf_social_text($canvas, string $headline, int $target_width, int $panel_y, string $variant, string $bold_font, string $regular_font): void
+    private static function overlay_display_text(string $headline): string
     {
-        $margin = max(42, (int) round($target_width * 0.062));
+        $headline = trim($headline);
+        if ($headline === '') {
+            return '';
+        }
+
+        return function_exists('mb_strtoupper') ? mb_strtoupper($headline, 'UTF-8') : strtoupper($headline);
+    }
+
+    private static function draw_ttf_social_text($canvas, string $headline, int $target_width, int $target_height, string $variant, string $bold_font, string $regular_font): void
+    {
+        $margin = max(46, (int) round($target_width * 0.068));
         $max_width = max(120, $target_width - ($margin * 2));
         $white = imagecolorallocate($canvas, 255, 255, 255);
-        $muted = imagecolorallocate($canvas, 213, 232, 224);
-        $shadow = imagecolorallocatealpha($canvas, 0, 0, 0, 58);
-        $brand_size = max(24, (int) round($target_width * 0.036));
-        $headline_size = max(54, (int) round($target_width * ($variant === 'og' ? 0.078 : 0.092)));
-        $max_lines = $variant === 'og' ? 2 : 3;
+        $sage = imagecolorallocate($canvas, 198, 232, 218);
+        $outline = imagecolorallocatealpha($canvas, 5, 12, 14, 8);
+        $shadow = imagecolorallocatealpha($canvas, 92, 17, 48, 28);
+        $brand_size = max(25, (int) round($target_width * 0.034));
+        $headline_size = max(62, (int) round($target_width * ($variant === 'og' ? 0.083 : 0.098)));
+        $max_lines = 3;
 
         do {
             $lines = self::wrap_ttf_lines($headline, $bold_font, $headline_size, $max_width);
             if (count($lines) <= $max_lines) {
                 break;
             }
-            $headline_size -= 5;
-        } while ($headline_size > 44);
+            $headline_size -= 6;
+        } while ($headline_size > 48);
 
         $lines = self::limit_ttf_lines($lines, $max_lines, $bold_font, $headline_size, $max_width);
-        $brand_y = $panel_y + max(48, (int) round($margin * 0.92));
-        $headline_y = $brand_y + $headline_size + max(28, (int) round($margin * 0.38));
-        $line_height = (int) round($headline_size * 1.08);
+        $line_height = (int) round($headline_size * 1.04);
+        $brand_gap = max(24, (int) round($headline_size * 0.34));
+        $accent_gap = max(24, (int) round($headline_size * 0.28));
+        $accent_height = max(8, (int) round($target_height * 0.008));
+        $block_height = $brand_size + $brand_gap + (count($lines) * $line_height) + $accent_gap + $accent_height;
+        $brand_baseline = max($brand_size + 16, (int) floor(($target_height - $block_height) / 2) + $brand_size);
+
+        self::draw_centered_ttf_text($canvas, 'DR PURG JR.', $regular_font, $brand_size, $brand_baseline, $target_width, $sage !== false ? $sage : $white, $outline, $shadow, 2);
+
+        $headline_baseline = $brand_baseline + $brand_gap + $headline_size;
+        foreach ($lines as $line) {
+            self::draw_centered_ttf_text($canvas, $line, $bold_font, $headline_size, $headline_baseline, $target_width, $white, $outline, $shadow, max(4, (int) round($headline_size * 0.055)));
+            $headline_baseline += $line_height;
+        }
+
+        $accent_width = min((int) round($target_width * 0.38), max(160, (int) round($target_width * 0.18)));
+        $accent_y = $headline_baseline - $line_height + $accent_gap;
+        self::draw_centered_accent($canvas, $target_width, $accent_y, $accent_width, $accent_height);
+    }
+
+    private static function draw_centered_ttf_text($canvas, string $text, string $font, int $size, int $baseline_y, int $target_width, $fill, $outline, $shadow, int $outline_radius): void
+    {
+        $text_width = self::ttf_text_width($text, $font, $size);
+        $x = (int) floor(($target_width - $text_width) / 2);
 
         if ($shadow !== false) {
-            imagettftext($canvas, $brand_size, 0, $margin + 3, $brand_y + 3, $shadow, $regular_font, 'DR PURG JR.');
+            imagettftext($canvas, $size, 0, $x + max(4, (int) round($size * 0.05)), $baseline_y + max(5, (int) round($size * 0.06)), $shadow, $font, $text);
         }
-        imagettftext($canvas, $brand_size, 0, $margin, $brand_y, $muted !== false ? $muted : $white, $regular_font, 'DR PURG JR.');
-        foreach ($lines as $line) {
-            if ($shadow !== false) {
-                imagettftext($canvas, $headline_size, 0, $margin + 4, $headline_y + 5, $shadow, $bold_font, $line);
+
+        if ($outline !== false) {
+            for ($dx = -$outline_radius; $dx <= $outline_radius; $dx++) {
+                for ($dy = -$outline_radius; $dy <= $outline_radius; $dy++) {
+                    if ($dx === 0 && $dy === 0) {
+                        continue;
+                    }
+                    if (($dx * $dx) + ($dy * $dy) > ($outline_radius * $outline_radius)) {
+                        continue;
+                    }
+                    imagettftext($canvas, $size, 0, $x + $dx, $baseline_y + $dy, $outline, $font, $text);
+                }
             }
-            imagettftext($canvas, $headline_size, 0, $margin, $headline_y, $white, $bold_font, $line);
-            $headline_y += $line_height;
+        }
+
+        imagettftext($canvas, $size, 0, $x, $baseline_y, $fill, $font, $text);
+    }
+
+    private static function draw_centered_accent($canvas, int $target_width, int $y, int $width, int $height): void
+    {
+        $x = (int) floor(($target_width - $width) / 2);
+        $shadow = imagecolorallocatealpha($canvas, 0, 0, 0, 62);
+        if ($shadow !== false) {
+            imagefilledrectangle($canvas, $x + 4, $y + 5, $x + $width + 4, $y + $height + 5, $shadow);
+        }
+
+        $accent = imagecolorallocate($canvas, 142, 42, 79);
+        if ($accent !== false) {
+            imagefilledrectangle($canvas, $x, $y, $x + $width, $y + $height, $accent);
         }
     }
 
@@ -1744,29 +1780,34 @@ final class Dr_Purg_Social_Syndicator
         return abs((int) $box[2] - (int) $box[0]);
     }
 
-    private static function draw_fallback_social_text($canvas, string $headline, int $target_width, int $target_height, int $panel_y, string $variant): void
+    private static function draw_fallback_social_text($canvas, string $headline, int $target_width, int $target_height, string $variant): void
     {
-        $margin = max(44, (int) round($target_width * 0.06));
+        $margin = max(46, (int) round($target_width * 0.066));
         $font = 5;
-        $brand_scale = max(3, (int) round($target_width / 310));
-        $headline_scale = max(6, (int) round($target_width / ($variant === 'og' ? 205 : 185)));
-        $max_lines = $variant === 'og' ? 2 : 3;
-        $max_chars = max(12, (int) floor(($target_width - ($margin * 2)) / (imagefontwidth($font) * $headline_scale)));
+        $brand_scale = max(3, (int) round($target_width / 330));
+        $headline_scale = max(5, (int) round($target_width / ($variant === 'og' ? 220 : 205)));
+        $max_lines = 3;
+        $max_chars = max(12, (int) floor(($target_width - ($margin * 2)) / max(1, imagefontwidth($font) * $headline_scale)));
         $lines = self::fallback_wrap_lines($headline, $max_chars, $max_lines);
         $brand_height = imagefontheight($font) * $brand_scale;
         $headline_height = imagefontheight($font) * $headline_scale;
-        $line_gap = max(10, (int) round($headline_height * 0.18));
-        $y = $panel_y + max(46, (int) round($target_height * 0.04));
+        $line_gap = max(12, (int) round($headline_height * 0.16));
+        $brand_gap = max(26, (int) round($headline_height * 0.36));
+        $accent_gap = max(24, (int) round($headline_height * 0.30));
+        $accent_height = max(8, (int) round($target_height * 0.008));
+        $block_height = $brand_height + $brand_gap + (count($lines) * $headline_height) + ((count($lines) - 1) * $line_gap) + $accent_gap + $accent_height;
+        $y = max(24, (int) floor(($target_height - $block_height) / 2));
 
-        self::draw_scaled_string($canvas, 'DR PURG JR.', $font, $margin + 3, $y + 3, $brand_scale, [0, 0, 0, 62]);
-        self::draw_scaled_string($canvas, 'DR PURG JR.', $font, $margin, $y, $brand_scale, [213, 232, 224, 0]);
+        self::draw_centered_scaled_string($canvas, 'DR PURG JR.', $font, $y, $brand_scale, $target_width, [213, 232, 224, 0], [0, 0, 0, 26], [92, 17, 48, 48], max(2, (int) round($brand_scale * 0.7)));
 
-        $y += $brand_height + max(30, (int) round($headline_height * 0.34));
+        $y += $brand_height + $brand_gap;
         foreach ($lines as $line) {
-            self::draw_scaled_string($canvas, $line, $font, $margin + 5, $y + 6, $headline_scale, [0, 0, 0, 58]);
-            self::draw_scaled_string($canvas, $line, $font, $margin, $y, $headline_scale, [255, 255, 255, 0]);
+            self::draw_centered_scaled_string($canvas, $line, $font, $y, $headline_scale, $target_width, [255, 255, 255, 0], [3, 9, 11, 7], [92, 17, 48, 32], max(4, (int) round($headline_scale * 1.1)));
             $y += $headline_height + $line_gap;
         }
+
+        $accent_width = min((int) round($target_width * 0.38), max(160, (int) round($target_width * 0.18)));
+        self::draw_centered_accent($canvas, $target_width, $y + $accent_gap - $line_gap, $accent_width, $accent_height);
     }
 
     private static function fallback_wrap_lines(string $headline, int $max_chars, int $max_lines): array
@@ -1785,6 +1826,28 @@ final class Dr_Purg_Social_Syndicator
         $limited[$max_lines - 1] = $last !== '' ? $last . '...' : '...';
 
         return $limited;
+    }
+
+    private static function draw_centered_scaled_string($canvas, string $text, int $font, int $y, int $scale, int $target_width, array $fill, array $outline, array $shadow, int $outline_radius): void
+    {
+        $text_width = imagefontwidth($font) * strlen($text) * $scale;
+        $x = (int) floor(($target_width - $text_width) / 2);
+
+        self::draw_scaled_string($canvas, $text, $font, $x + max(4, (int) round($scale * 1.25)), $y + max(5, (int) round($scale * 1.4)), $scale, $shadow);
+
+        for ($dx = -$outline_radius; $dx <= $outline_radius; $dx += max(1, (int) floor($outline_radius / 2))) {
+            for ($dy = -$outline_radius; $dy <= $outline_radius; $dy += max(1, (int) floor($outline_radius / 2))) {
+                if ($dx === 0 && $dy === 0) {
+                    continue;
+                }
+                if (($dx * $dx) + ($dy * $dy) > ($outline_radius * $outline_radius)) {
+                    continue;
+                }
+                self::draw_scaled_string($canvas, $text, $font, $x + $dx, $y + $dy, $scale, $outline);
+            }
+        }
+
+        self::draw_scaled_string($canvas, $text, $font, $x, $y, $scale, $fill);
     }
 
     private static function draw_scaled_string($canvas, string $text, int $font, int $x, int $y, int $scale, array $rgba): void
