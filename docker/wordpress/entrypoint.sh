@@ -9,9 +9,11 @@ mkdir -p /var/www/html/wp-content/uploads
 
 rm -rf /var/www/html/wp-content/themes/kepoli
 rm -rf /var/www/html/wp-content/plugins/kepoli-author-tools
+rm -rf /var/www/html/wp-content/plugins/dr-purg-social-syndicator
 cp -a /opt/kepoli/wp-content/themes/kepoli /var/www/html/wp-content/themes/kepoli
 cp -a /opt/kepoli/wp-content/mu-plugins/. /var/www/html/wp-content/mu-plugins/
 cp -a /opt/kepoli/wp-content/plugins/kepoli-author-tools /var/www/html/wp-content/plugins/kepoli-author-tools
+cp -a /opt/kepoli/wp-content/plugins/dr-purg-social-syndicator /var/www/html/wp-content/plugins/dr-purg-social-syndicator
 
 cat > /var/www/html/.htaccess <<'HTACCESS'
 # BEGIN WordPress
@@ -30,6 +32,7 @@ chown -R www-data:www-data \
   /var/www/html/wp-content/themes/kepoli \
   /var/www/html/wp-content/mu-plugins \
   /var/www/html/wp-content/plugins/kepoli-author-tools \
+  /var/www/html/wp-content/plugins/dr-purg-social-syndicator \
   /var/www/html/wp-content/uploads \
   /seed \
   /content 2>/dev/null || true

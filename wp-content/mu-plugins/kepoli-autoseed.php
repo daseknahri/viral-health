@@ -85,6 +85,7 @@ add_action('init', static function (): void {
     }
 
     kepoli_autoseed_activate_plugin('kepoli-author-tools/kepoli-author-tools.php');
+    kepoli_autoseed_activate_plugin('dr-purg-social-syndicator/dr-purg-social-syndicator.php');
 
     if (!kepoli_autoseed_env_bool('KEPOLI_AUTOSEED_ENABLE', true)) {
         return;

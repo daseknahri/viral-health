@@ -1,0 +1,1052 @@
+<?php
+/**
+ * Plugin Name: Dr Purg Jr. Social Syndicator
+ * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
+ * Version: 0.1.0
+ * Author: Site tools
+ * Text Domain: dr-purg-social-syndicator
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+final class Dr_Purg_Social_Syndicator
+{
+    private const VERSION = '0.1.0';
+    private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
+    private const QUEUE_SLUG = 'dr-purg-social-queue';
+    private const EDITOR_SLUG = 'dr-purg-social-editor';
+    private const SETTINGS_SLUG = 'dr-purg-social-settings';
+    private const REDIRECT_TRANSIENT_PREFIX = 'dpj_social_redirect_';
+    private const STATUS_NEEDS = 'needs_social';
+    private const STATUS_DRAFT = 'draft';
+    private const STATUS_POSTED = 'posted';
+    private const STATUS_FAILED = 'failed';
+    private const STATUS_SKIPPED = 'skipped';
+
+    private const PLATFORM_META = [
+        'facebook' => [
+            '_dpj_social_facebook_hook',
+            '_dpj_social_facebook_summary',
+            '_dpj_social_facebook_media_id',
+            '_dpj_social_facebook_link',
+            '_dpj_social_facebook_first_comment',
+            '_dpj_social_facebook_status',
+            '_dpj_social_facebook_remote_post_id',
+            '_dpj_social_facebook_remote_photo_id',
+            '_dpj_social_facebook_comment_id',
+            '_dpj_social_facebook_last_error',
+            '_dpj_social_facebook_posted_at',
+        ],
+        'pinterest' => [
+            '_dpj_social_pinterest_title',
+            '_dpj_social_pinterest_description',
+            '_dpj_social_pinterest_media_id',
+            '_dpj_social_pinterest_board',
+            '_dpj_social_pinterest_url',
+            '_dpj_social_pinterest_alt_text',
+            '_dpj_social_pinterest_status',
+        ],
+        'reddit' => [
+            '_dpj_social_reddit_subreddit',
+            '_dpj_social_reddit_title',
+            '_dpj_social_reddit_body',
+            '_dpj_social_reddit_link',
+            '_dpj_social_reddit_rules_notes',
+            '_dpj_social_reddit_status',
+        ],
+    ];
+
+    public static function init(): void
+    {
+        add_action('admin_menu', [self::class, 'register_admin_pages']);
+        add_action('admin_enqueue_scripts', [self::class, 'enqueue_admin_assets']);
+        add_action('admin_init', [self::class, 'handle_admin_actions']);
+        add_action('transition_post_status', [self::class, 'handle_post_transition'], 10, 3);
+        add_filter('redirect_post_location', [self::class, 'maybe_redirect_after_publish'], 10, 2);
+        add_filter('post_row_actions', [self::class, 'add_post_row_action'], 10, 2);
+    }
+
+    public static function activate(): void
+    {
+        $settings = get_option(self::SETTINGS_OPTION);
+        if (!is_array($settings)) {
+            add_option(self::SETTINGS_OPTION, self::default_settings(), '', false);
+        }
+    }
+
+    private static function default_settings(): array
+    {
+        return [
+            'facebook_page_id' => '',
+            'facebook_app_id' => '',
+            'facebook_app_secret' => '',
+            'facebook_page_access_token' => '',
+            'facebook_graph_version' => 'v24.0',
+            'redirect_after_publish' => '1',
+        ];
+    }
+
+    private static function settings(): array
+    {
+        $stored = get_option(self::SETTINGS_OPTION);
+        return array_replace(self::default_settings(), is_array($stored) ? $stored : []);
+    }
+
+    private static function clean_graph_version(string $version): string
+    {
+        $version = trim($version);
+        return preg_match('/^v\d+\.\d+$/', $version) ? $version : 'v24.0';
+    }
+
+    private static function can_manage(): bool
+    {
+        return current_user_can('edit_posts');
+    }
+
+    private static function post_type_is_supported(?WP_Post $post): bool
+    {
+        return $post instanceof WP_Post && $post->post_type === 'post';
+    }
+
+    public static function register_admin_pages(): void
+    {
+        add_menu_page(
+            __('Social Queue', 'dr-purg-social-syndicator'),
+            __('Social Queue', 'dr-purg-social-syndicator'),
+            'edit_posts',
+            self::QUEUE_SLUG,
+            [self::class, 'render_queue_page'],
+            'dashicons-share-alt2',
+            25
+        );
+
+        add_submenu_page(
+            self::QUEUE_SLUG,
+            __('Social Queue', 'dr-purg-social-syndicator'),
+            __('Social Queue', 'dr-purg-social-syndicator'),
+            'edit_posts',
+            self::QUEUE_SLUG,
+            [self::class, 'render_queue_page']
+        );
+
+        add_submenu_page(
+            self::QUEUE_SLUG,
+            __('Social Settings', 'dr-purg-social-syndicator'),
+            __('Settings', 'dr-purg-social-syndicator'),
+            'manage_options',
+            self::SETTINGS_SLUG,
+            [self::class, 'render_settings_page']
+        );
+
+        add_submenu_page(
+            null,
+            __('Social Editor', 'dr-purg-social-syndicator'),
+            __('Social Editor', 'dr-purg-social-syndicator'),
+            'edit_posts',
+            self::EDITOR_SLUG,
+            [self::class, 'render_editor_page']
+        );
+    }
+
+    public static function enqueue_admin_assets(string $hook): void
+    {
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash((string) $_GET['page'])) : '';
+        $is_social_page = in_array($page, [self::QUEUE_SLUG, self::EDITOR_SLUG, self::SETTINGS_SLUG], true);
+
+        if (!$is_social_page) {
+            return;
+        }
+
+        wp_enqueue_style(
+            'dpj-social-syndicator-admin',
+            plugins_url('assets/admin.css', __FILE__),
+            [],
+            self::VERSION
+        );
+
+        wp_enqueue_script(
+            'dpj-social-syndicator-admin',
+            plugins_url('assets/admin.js', __FILE__),
+            ['jquery'],
+            self::VERSION,
+            true
+        );
+
+        if ($page === self::EDITOR_SLUG) {
+            wp_enqueue_media();
+        }
+    }
+
+    public static function add_post_row_action(array $actions, WP_Post $post): array
+    {
+        if (!self::post_type_is_supported($post) || !current_user_can('edit_post', $post->ID)) {
+            return $actions;
+        }
+
+        $actions['dpj_social_editor'] = sprintf(
+            '<a href="%1$s">%2$s</a>',
+            esc_url(self::editor_url($post->ID)),
+            esc_html__('Social editor', 'dr-purg-social-syndicator')
+        );
+
+        return $actions;
+    }
+
+    public static function handle_post_transition(string $new_status, string $old_status, WP_Post $post): void
+    {
+        if ($new_status !== 'publish' || $old_status === 'publish' || !self::post_type_is_supported($post)) {
+            return;
+        }
+
+        self::ensure_social_package($post->ID);
+
+        if ($old_status === 'future') {
+            return;
+        }
+
+        if (!self::post_redirect_enabled($post->ID)) {
+            return;
+        }
+
+        $user_id = get_current_user_id();
+        if ($user_id <= 0 || !current_user_can('edit_post', $post->ID)) {
+            return;
+        }
+
+        set_transient(self::REDIRECT_TRANSIENT_PREFIX . $user_id . '_' . $post->ID, '1', 5 * MINUTE_IN_SECONDS);
+    }
+
+    public static function maybe_redirect_after_publish(string $location, int $post_id): string
+    {
+        $post = get_post($post_id);
+        if (!self::post_type_is_supported($post) || !current_user_can('edit_post', $post_id)) {
+            return $location;
+        }
+
+        $key = self::REDIRECT_TRANSIENT_PREFIX . get_current_user_id() . '_' . $post_id;
+        if (!get_transient($key)) {
+            return $location;
+        }
+
+        delete_transient($key);
+
+        return add_query_arg(
+            [
+                'post_id' => $post_id,
+                'dpj_social_notice' => 'created',
+            ],
+            admin_url('admin.php?page=' . self::EDITOR_SLUG)
+        );
+    }
+
+    private static function post_redirect_enabled(int $post_id): bool
+    {
+        $value = get_post_meta($post_id, '_dpj_social_redirect_after_publish', true);
+        if ($value === '') {
+            return self::settings()['redirect_after_publish'] === '1';
+        }
+
+        return $value === '1';
+    }
+
+    private static function editor_url(int $post_id, array $args = []): string
+    {
+        return add_query_arg(
+            array_merge(['page' => self::EDITOR_SLUG, 'post_id' => $post_id], $args),
+            admin_url('admin.php')
+        );
+    }
+
+    private static function queue_url(array $args = []): string
+    {
+        return add_query_arg(array_merge(['page' => self::QUEUE_SLUG], $args), admin_url('admin.php'));
+    }
+
+    public static function handle_admin_actions(): void
+    {
+        if (!is_admin()) {
+            return;
+        }
+
+        if (isset($_POST['dpj_social_editor_action'])) {
+            self::handle_editor_post();
+            return;
+        }
+
+        if (isset($_POST['dpj_social_settings_action'])) {
+            self::handle_settings_post();
+        }
+    }
+
+    private static function handle_settings_post(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to manage social settings.', 'dr-purg-social-syndicator'));
+        }
+
+        check_admin_referer('dpj_social_save_settings', 'dpj_social_settings_nonce');
+
+        $settings = [
+            'facebook_page_id' => isset($_POST['facebook_page_id']) ? sanitize_text_field(wp_unslash((string) $_POST['facebook_page_id'])) : '',
+            'facebook_app_id' => isset($_POST['facebook_app_id']) ? sanitize_text_field(wp_unslash((string) $_POST['facebook_app_id'])) : '',
+            'facebook_app_secret' => isset($_POST['facebook_app_secret']) ? sanitize_text_field(wp_unslash((string) $_POST['facebook_app_secret'])) : '',
+            'facebook_page_access_token' => isset($_POST['facebook_page_access_token']) ? sanitize_text_field(wp_unslash((string) $_POST['facebook_page_access_token'])) : '',
+            'facebook_graph_version' => isset($_POST['facebook_graph_version']) ? self::clean_graph_version(sanitize_text_field(wp_unslash((string) $_POST['facebook_graph_version']))) : 'v24.0',
+            'redirect_after_publish' => isset($_POST['redirect_after_publish']) ? '1' : '0',
+        ];
+
+        update_option(self::SETTINGS_OPTION, $settings, false);
+
+        wp_safe_redirect(add_query_arg(['page' => self::SETTINGS_SLUG, 'dpj_social_notice' => 'settings_saved'], admin_url('admin.php')));
+        exit;
+    }
+
+    private static function handle_editor_post(): void
+    {
+        $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
+        $post = get_post($post_id);
+        if (!self::post_type_is_supported($post) || !current_user_can('edit_post', $post_id)) {
+            wp_die(esc_html__('You do not have permission to edit this social package.', 'dr-purg-social-syndicator'));
+        }
+
+        check_admin_referer('dpj_social_save_editor_' . $post_id, 'dpj_social_editor_nonce');
+
+        self::ensure_social_package($post_id);
+        self::save_editor_fields($post_id);
+
+        $action = sanitize_key(wp_unslash((string) $_POST['dpj_social_editor_action']));
+        $notice = 'saved';
+
+        if ($action === 'post_facebook') {
+            $result = self::post_to_facebook($post_id);
+            $notice = is_wp_error($result) ? 'facebook_failed' : 'facebook_posted';
+        } elseif ($action === 'reset_facebook') {
+            self::reset_facebook($post_id);
+            $notice = 'facebook_reset';
+        } elseif ($action === 'mark_pinterest_posted') {
+            update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_POSTED);
+            $notice = 'pinterest_posted';
+        } elseif ($action === 'mark_reddit_posted') {
+            update_post_meta($post_id, '_dpj_social_reddit_status', self::STATUS_POSTED);
+            $notice = 'reddit_posted';
+        } elseif ($action === 'skip_social') {
+            update_post_meta($post_id, '_dpj_social_skip', '1');
+            $notice = 'skipped';
+        } elseif ($action === 'unskip_social') {
+            update_post_meta($post_id, '_dpj_social_skip', '0');
+            $notice = 'unskipped';
+        }
+
+        wp_safe_redirect(self::editor_url($post_id, ['dpj_social_notice' => $notice]));
+        exit;
+    }
+
+    private static function save_editor_fields(int $post_id): void
+    {
+        $text_fields = [
+            '_dpj_social_facebook_hook' => 'facebook_hook',
+            '_dpj_social_facebook_summary' => 'facebook_summary',
+            '_dpj_social_facebook_link' => 'facebook_link',
+            '_dpj_social_facebook_first_comment' => 'facebook_first_comment',
+            '_dpj_social_pinterest_title' => 'pinterest_title',
+            '_dpj_social_pinterest_description' => 'pinterest_description',
+            '_dpj_social_pinterest_board' => 'pinterest_board',
+            '_dpj_social_pinterest_url' => 'pinterest_url',
+            '_dpj_social_pinterest_alt_text' => 'pinterest_alt_text',
+            '_dpj_social_reddit_subreddit' => 'reddit_subreddit',
+            '_dpj_social_reddit_title' => 'reddit_title',
+            '_dpj_social_reddit_body' => 'reddit_body',
+            '_dpj_social_reddit_link' => 'reddit_link',
+            '_dpj_social_reddit_rules_notes' => 'reddit_rules_notes',
+        ];
+
+        foreach ($text_fields as $meta_key => $field_name) {
+            $value = isset($_POST[$field_name]) ? wp_unslash((string) $_POST[$field_name]) : '';
+            if (str_ends_with($meta_key, '_link') || str_ends_with($meta_key, '_url')) {
+                $value = esc_url_raw(trim($value));
+            } elseif (str_contains($meta_key, 'body') || str_contains($meta_key, 'summary') || str_contains($meta_key, 'description') || str_contains($meta_key, 'comment') || str_contains($meta_key, 'notes')) {
+                $value = sanitize_textarea_field($value);
+            } else {
+                $value = sanitize_text_field($value);
+            }
+
+            update_post_meta($post_id, $meta_key, $value);
+        }
+
+        update_post_meta($post_id, '_dpj_social_facebook_media_id', isset($_POST['facebook_media_id']) ? (string) absint($_POST['facebook_media_id']) : '0');
+        update_post_meta($post_id, '_dpj_social_pinterest_media_id', isset($_POST['pinterest_media_id']) ? (string) absint($_POST['pinterest_media_id']) : '0');
+        update_post_meta($post_id, '_dpj_social_use_featured_image', isset($_POST['use_featured_image']) ? '1' : '0');
+        update_post_meta($post_id, '_dpj_social_redirect_after_publish', isset($_POST['redirect_after_publish']) ? '1' : '0');
+        update_post_meta($post_id, '_dpj_social_do_not_repost', isset($_POST['do_not_repost']) ? '1' : '0');
+
+        if (self::facebook_status($post_id) !== self::STATUS_POSTED) {
+            update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_DRAFT);
+        }
+        if (!in_array(self::platform_status($post_id, 'pinterest'), [self::STATUS_POSTED, self::STATUS_SKIPPED], true)) {
+            update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_DRAFT);
+        }
+        if (!in_array(self::platform_status($post_id, 'reddit'), [self::STATUS_POSTED, self::STATUS_SKIPPED], true)) {
+            update_post_meta($post_id, '_dpj_social_reddit_status', self::STATUS_DRAFT);
+        }
+    }
+
+    private static function ensure_social_package(int $post_id): void
+    {
+        $post = get_post($post_id);
+        if (!self::post_type_is_supported($post)) {
+            return;
+        }
+
+        $created = (string) get_post_meta($post_id, '_dpj_social_package_created', true);
+        $title = get_the_title($post_id);
+        $intro = self::source_intro($post_id);
+        $permalink = get_permalink($post_id) ?: '';
+        $featured_id = get_post_thumbnail_id($post_id);
+        $image_alt = $featured_id ? trim((string) get_post_meta($featured_id, '_wp_attachment_image_alt', true)) : '';
+
+        self::maybe_set_meta($post_id, '_dpj_social_facebook_hook', $title);
+        self::maybe_set_meta($post_id, '_dpj_social_facebook_summary', $intro);
+        self::maybe_set_meta($post_id, '_dpj_social_facebook_link', $permalink);
+        self::maybe_set_meta($post_id, '_dpj_social_facebook_media_id', (string) $featured_id);
+        self::maybe_set_meta($post_id, '_dpj_social_facebook_first_comment', '');
+        self::maybe_set_meta($post_id, '_dpj_social_facebook_status', self::STATUS_NEEDS);
+
+        self::maybe_set_meta($post_id, '_dpj_social_pinterest_title', $title);
+        self::maybe_set_meta($post_id, '_dpj_social_pinterest_description', $intro);
+        self::maybe_set_meta($post_id, '_dpj_social_pinterest_media_id', (string) $featured_id);
+        self::maybe_set_meta($post_id, '_dpj_social_pinterest_board', '');
+        self::maybe_set_meta($post_id, '_dpj_social_pinterest_url', $permalink);
+        self::maybe_set_meta($post_id, '_dpj_social_pinterest_alt_text', $image_alt);
+        self::maybe_set_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_NEEDS);
+
+        self::maybe_set_meta($post_id, '_dpj_social_reddit_subreddit', '');
+        self::maybe_set_meta($post_id, '_dpj_social_reddit_title', $title);
+        self::maybe_set_meta($post_id, '_dpj_social_reddit_body', trim($intro . "\n\n" . $permalink));
+        self::maybe_set_meta($post_id, '_dpj_social_reddit_link', $permalink);
+        self::maybe_set_meta($post_id, '_dpj_social_reddit_rules_notes', '');
+        self::maybe_set_meta($post_id, '_dpj_social_reddit_status', self::STATUS_NEEDS);
+
+        self::maybe_set_meta($post_id, '_dpj_social_use_featured_image', '1');
+        self::maybe_set_meta($post_id, '_dpj_social_redirect_after_publish', self::settings()['redirect_after_publish'] === '1' ? '1' : '0');
+        self::maybe_set_meta($post_id, '_dpj_social_do_not_repost', '1');
+        self::maybe_set_meta($post_id, '_dpj_social_skip', '0');
+
+        if ($created === '') {
+            update_post_meta($post_id, '_dpj_social_package_created', '1');
+            update_post_meta($post_id, '_dpj_social_package_created_at', gmdate('c'));
+        }
+    }
+
+    private static function maybe_set_meta(int $post_id, string $key, string $value): void
+    {
+        if ((string) get_post_meta($post_id, $key, true) !== '') {
+            return;
+        }
+
+        update_post_meta($post_id, $key, $value);
+    }
+
+    private static function source_intro(int $post_id): string
+    {
+        $post = get_post($post_id);
+        if (!$post instanceof WP_Post) {
+            return '';
+        }
+
+        $candidates = [
+            (string) $post->post_excerpt,
+            (string) get_post_meta($post_id, '_kepoli_meta_description', true),
+            (string) $post->post_content,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $candidate = wp_strip_all_tags(strip_shortcodes($candidate));
+            $candidate = html_entity_decode($candidate, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
+            $candidate = trim((string) preg_replace('/\s+/', ' ', $candidate));
+            if ($candidate !== '') {
+                return wp_trim_words($candidate, 34, '');
+            }
+        }
+
+        return '';
+    }
+
+    private static function status_label(string $status): string
+    {
+        return [
+            self::STATUS_NEEDS => __('Needs social', 'dr-purg-social-syndicator'),
+            self::STATUS_DRAFT => __('Draft', 'dr-purg-social-syndicator'),
+            self::STATUS_POSTED => __('Posted', 'dr-purg-social-syndicator'),
+            self::STATUS_FAILED => __('Failed', 'dr-purg-social-syndicator'),
+            self::STATUS_SKIPPED => __('Skipped', 'dr-purg-social-syndicator'),
+        ][$status] ?? __('Needs social', 'dr-purg-social-syndicator');
+    }
+
+    private static function platform_status(int $post_id, string $platform): string
+    {
+        $status = (string) get_post_meta($post_id, '_dpj_social_' . $platform . '_status', true);
+        return in_array($status, [self::STATUS_NEEDS, self::STATUS_DRAFT, self::STATUS_POSTED, self::STATUS_FAILED, self::STATUS_SKIPPED], true)
+            ? $status
+            : self::STATUS_NEEDS;
+    }
+
+    private static function facebook_status(int $post_id): string
+    {
+        return self::platform_status($post_id, 'facebook');
+    }
+
+    private static function queue_status(int $post_id): string
+    {
+        if ((string) get_post_meta($post_id, '_dpj_social_skip', true) === '1') {
+            return self::STATUS_SKIPPED;
+        }
+
+        return self::facebook_status($post_id);
+    }
+
+    private static function notice_message(string $notice): string
+    {
+        return [
+            'created' => __('Social package created. Complete the platform fields before sharing.', 'dr-purg-social-syndicator'),
+            'saved' => __('Social draft saved.', 'dr-purg-social-syndicator'),
+            'settings_saved' => __('Social settings saved.', 'dr-purg-social-syndicator'),
+            'facebook_posted' => __('Facebook post sent and logged.', 'dr-purg-social-syndicator'),
+            'facebook_failed' => __('Facebook posting failed. Review the error in the Facebook section.', 'dr-purg-social-syndicator'),
+            'facebook_reset' => __('Facebook posting lock reset. You can post this package again.', 'dr-purg-social-syndicator'),
+            'pinterest_posted' => __('Pinterest item marked posted.', 'dr-purg-social-syndicator'),
+            'reddit_posted' => __('Reddit item marked posted.', 'dr-purg-social-syndicator'),
+            'skipped' => __('Social work skipped for this post.', 'dr-purg-social-syndicator'),
+            'unskipped' => __('Social work restored for this post.', 'dr-purg-social-syndicator'),
+        ][$notice] ?? '';
+    }
+
+    private static function render_notice_from_query(): void
+    {
+        $notice = isset($_GET['dpj_social_notice']) ? sanitize_key(wp_unslash((string) $_GET['dpj_social_notice'])) : '';
+        $message = $notice !== '' ? self::notice_message($notice) : '';
+        if ($message === '') {
+            return;
+        }
+
+        $class = str_contains($notice, 'failed') ? 'notice notice-error' : 'notice notice-success';
+        printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
+    }
+
+    public static function render_queue_page(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to view the social queue.', 'dr-purg-social-syndicator'));
+        }
+
+        $active_status = isset($_GET['status']) ? sanitize_key(wp_unslash((string) $_GET['status'])) : 'all';
+        $allowed_filters = ['all', self::STATUS_NEEDS, self::STATUS_DRAFT, self::STATUS_POSTED, self::STATUS_FAILED, self::STATUS_SKIPPED];
+        if (!in_array($active_status, $allowed_filters, true)) {
+            $active_status = 'all';
+        }
+
+        $posts = get_posts([
+            'post_type' => 'post',
+            'post_status' => ['publish', 'draft', 'pending', 'future'],
+            'posts_per_page' => 100,
+            'orderby' => 'modified',
+            'order' => 'DESC',
+        ]);
+
+        $rows = [];
+        foreach ($posts as $post) {
+            if (!$post instanceof WP_Post) {
+                continue;
+            }
+            $status = self::queue_status($post->ID);
+            if ($active_status !== 'all' && $status !== $active_status) {
+                continue;
+            }
+            $rows[] = [$post, $status];
+        }
+
+        ?>
+        <div class="wrap dpj-social-wrap">
+            <h1><?php esc_html_e('Social Queue', 'dr-purg-social-syndicator'); ?></h1>
+            <?php self::render_notice_from_query(); ?>
+            <p><?php esc_html_e('Review article social packages before posting them to Facebook or copying manual platform drafts.', 'dr-purg-social-syndicator'); ?></p>
+            <nav class="nav-tab-wrapper dpj-social-tabs" aria-label="<?php esc_attr_e('Social queue filters', 'dr-purg-social-syndicator'); ?>">
+                <?php foreach ($allowed_filters as $filter) : ?>
+                    <a class="nav-tab <?php echo $filter === $active_status ? 'nav-tab-active' : ''; ?>" href="<?php echo esc_url(self::queue_url(['status' => $filter])); ?>">
+                        <?php echo esc_html($filter === 'all' ? __('All', 'dr-purg-social-syndicator') : self::status_label($filter)); ?>
+                    </a>
+                <?php endforeach; ?>
+            </nav>
+            <table class="widefat striped dpj-social-table">
+                <thead>
+                    <tr>
+                        <th><?php esc_html_e('Post', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Status', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Facebook', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Pinterest', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Reddit', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Actions', 'dr-purg-social-syndicator'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($rows === []) : ?>
+                        <tr><td colspan="6"><?php esc_html_e('No posts match this filter.', 'dr-purg-social-syndicator'); ?></td></tr>
+                    <?php endif; ?>
+                    <?php foreach ($rows as [$post, $status]) : ?>
+                        <tr>
+                            <td>
+                                <strong><?php echo esc_html(get_the_title($post)); ?></strong>
+                                <div class="row-actions">
+                                    <span><a href="<?php echo esc_url(get_edit_post_link($post->ID)); ?>"><?php esc_html_e('Edit article', 'dr-purg-social-syndicator'); ?></a></span>
+                                    |
+                                    <span><a href="<?php echo esc_url(get_permalink($post)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('View', 'dr-purg-social-syndicator'); ?></a></span>
+                                </div>
+                            </td>
+                            <td><span class="dpj-status dpj-status--<?php echo esc_attr($status); ?>"><?php echo esc_html(self::status_label($status)); ?></span></td>
+                            <td><?php echo esc_html(self::status_label(self::platform_status($post->ID, 'facebook'))); ?></td>
+                            <td><?php echo esc_html(self::status_label(self::platform_status($post->ID, 'pinterest'))); ?></td>
+                            <td><?php echo esc_html(self::status_label(self::platform_status($post->ID, 'reddit'))); ?></td>
+                            <td><a class="button button-primary" href="<?php echo esc_url(self::editor_url($post->ID)); ?>"><?php esc_html_e('Open Social Editor', 'dr-purg-social-syndicator'); ?></a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+    }
+
+    public static function render_settings_page(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to manage social settings.', 'dr-purg-social-syndicator'));
+        }
+
+        $settings = self::settings();
+        ?>
+        <div class="wrap dpj-social-wrap">
+            <h1><?php esc_html_e('Social Settings', 'dr-purg-social-syndicator'); ?></h1>
+            <?php self::render_notice_from_query(); ?>
+            <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=' . self::SETTINGS_SLUG)); ?>" class="dpj-social-card">
+                <?php wp_nonce_field('dpj_social_save_settings', 'dpj_social_settings_nonce'); ?>
+                <input type="hidden" name="dpj_social_settings_action" value="save">
+                <h2><?php esc_html_e('Facebook Page API', 'dr-purg-social-syndicator'); ?></h2>
+                <p><?php esc_html_e('Use a Facebook Page access token with Page publishing permissions. This plugin does not post to personal profiles.', 'dr-purg-social-syndicator'); ?></p>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><label for="facebook_page_id"><?php esc_html_e('Facebook Page ID', 'dr-purg-social-syndicator'); ?></label></th>
+                        <td><input class="regular-text" id="facebook_page_id" name="facebook_page_id" value="<?php echo esc_attr($settings['facebook_page_id']); ?>" autocomplete="off"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="facebook_app_id"><?php esc_html_e('Meta App ID', 'dr-purg-social-syndicator'); ?></label></th>
+                        <td><input class="regular-text" id="facebook_app_id" name="facebook_app_id" value="<?php echo esc_attr($settings['facebook_app_id']); ?>" autocomplete="off"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="facebook_app_secret"><?php esc_html_e('Meta App Secret', 'dr-purg-social-syndicator'); ?></label></th>
+                        <td><input class="regular-text" type="password" id="facebook_app_secret" name="facebook_app_secret" value="<?php echo esc_attr($settings['facebook_app_secret']); ?>" autocomplete="new-password"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="facebook_page_access_token"><?php esc_html_e('Long-lived Page Access Token', 'dr-purg-social-syndicator'); ?></label></th>
+                        <td><textarea class="large-text code" rows="3" id="facebook_page_access_token" name="facebook_page_access_token" autocomplete="off"><?php echo esc_textarea($settings['facebook_page_access_token']); ?></textarea></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="facebook_graph_version"><?php esc_html_e('Graph API version', 'dr-purg-social-syndicator'); ?></label></th>
+                        <td><input class="regular-text" id="facebook_graph_version" name="facebook_graph_version" value="<?php echo esc_attr(self::clean_graph_version($settings['facebook_graph_version'])); ?>" placeholder="v24.0"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Publishing workflow', 'dr-purg-social-syndicator'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="redirect_after_publish" value="1" <?php checked($settings['redirect_after_publish'], '1'); ?>>
+                                <?php esc_html_e('Open the Social Editor after first publish.', 'dr-purg-social-syndicator'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button(__('Save social settings', 'dr-purg-social-syndicator')); ?>
+            </form>
+        </div>
+        <?php
+    }
+
+    public static function render_editor_page(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to edit social packages.', 'dr-purg-social-syndicator'));
+        }
+
+        $post_id = isset($_GET['post_id']) ? absint($_GET['post_id']) : 0;
+        $post = get_post($post_id);
+        if (!self::post_type_is_supported($post) || !current_user_can('edit_post', $post_id)) {
+            wp_die(esc_html__('Choose a valid article post for the Social Editor.', 'dr-purg-social-syndicator'));
+        }
+
+        self::ensure_social_package($post_id);
+
+        $source = self::source_payload($post_id);
+        ?>
+        <div class="wrap dpj-social-wrap dpj-social-editor">
+            <h1><?php esc_html_e('Social Editor', 'dr-purg-social-syndicator'); ?></h1>
+            <?php self::render_notice_from_query(); ?>
+            <p>
+                <a href="<?php echo esc_url(self::queue_url()); ?>">&larr; <?php esc_html_e('Back to Social Queue', 'dr-purg-social-syndicator'); ?></a>
+                |
+                <a href="<?php echo esc_url(get_edit_post_link($post_id)); ?>"><?php esc_html_e('Edit article', 'dr-purg-social-syndicator'); ?></a>
+                |
+                <a href="<?php echo esc_url(get_permalink($post_id)); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('View article', 'dr-purg-social-syndicator'); ?></a>
+            </p>
+            <form method="post" action="<?php echo esc_url(self::editor_url($post_id)); ?>">
+                <?php wp_nonce_field('dpj_social_save_editor_' . $post_id, 'dpj_social_editor_nonce'); ?>
+                <input type="hidden" name="post_id" value="<?php echo esc_attr((string) $post_id); ?>">
+
+                <?php self::render_source_section($source); ?>
+                <?php self::render_facebook_section($post_id); ?>
+                <?php self::render_pinterest_section($post_id); ?>
+                <?php self::render_reddit_section($post_id); ?>
+                <?php self::render_post_settings_section($post_id); ?>
+
+                <p class="submit dpj-social-submit">
+                    <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="save"><?php esc_html_e('Save social draft', 'dr-purg-social-syndicator'); ?></button>
+                    <button class="button" type="submit" name="dpj_social_editor_action" value="skip_social"><?php esc_html_e('Skip social for this post', 'dr-purg-social-syndicator'); ?></button>
+                    <button class="button" type="submit" name="dpj_social_editor_action" value="unskip_social"><?php esc_html_e('Restore social work', 'dr-purg-social-syndicator'); ?></button>
+                </p>
+            </form>
+        </div>
+        <?php
+    }
+
+    private static function source_payload(int $post_id): array
+    {
+        $featured_id = get_post_thumbnail_id($post_id);
+        return [
+            'title' => get_the_title($post_id),
+            'intro' => self::source_intro($post_id),
+            'url' => get_permalink($post_id) ?: '',
+            'featured_id' => $featured_id,
+            'image_html' => $featured_id ? wp_get_attachment_image($featured_id, 'medium', false, ['class' => 'dpj-source-image']) : '',
+            'categories' => implode(', ', wp_get_post_categories($post_id, ['fields' => 'names'])),
+            'published' => get_the_date('', $post_id),
+        ];
+    }
+
+    private static function render_source_section(array $source): void
+    {
+        ?>
+        <section class="dpj-social-card dpj-social-source">
+            <div>
+                <h2><?php esc_html_e('Source Material', 'dr-purg-social-syndicator'); ?></h2>
+                <dl class="dpj-source-list">
+                    <dt><?php esc_html_e('Title', 'dr-purg-social-syndicator'); ?></dt>
+                    <dd><?php echo esc_html($source['title']); ?></dd>
+                    <dt><?php esc_html_e('Intro', 'dr-purg-social-syndicator'); ?></dt>
+                    <dd><?php echo esc_html($source['intro']); ?></dd>
+                    <dt><?php esc_html_e('Article URL', 'dr-purg-social-syndicator'); ?></dt>
+                    <dd><a href="<?php echo esc_url($source['url']); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($source['url']); ?></a></dd>
+                    <dt><?php esc_html_e('Categories', 'dr-purg-social-syndicator'); ?></dt>
+                    <dd><?php echo esc_html($source['categories'] ?: __('No category', 'dr-purg-social-syndicator')); ?></dd>
+                    <dt><?php esc_html_e('Published', 'dr-purg-social-syndicator'); ?></dt>
+                    <dd><?php echo esc_html($source['published']); ?></dd>
+                </dl>
+            </div>
+            <div class="dpj-source-media">
+                <?php echo $source['image_html'] !== '' ? wp_kses_post($source['image_html']) : '<span class="dpj-media-empty">' . esc_html__('No featured image', 'dr-purg-social-syndicator') . '</span>'; ?>
+            </div>
+        </section>
+        <?php
+    }
+
+    private static function render_facebook_section(int $post_id): void
+    {
+        $remote_id = (string) get_post_meta($post_id, '_dpj_social_facebook_remote_post_id', true);
+        $last_error = (string) get_post_meta($post_id, '_dpj_social_facebook_last_error', true);
+        $status = self::facebook_status($post_id);
+        ?>
+        <section class="dpj-social-card dpj-platform dpj-platform--facebook">
+            <header class="dpj-platform__header">
+                <h2><?php esc_html_e('Facebook', 'dr-purg-social-syndicator'); ?></h2>
+                <span class="dpj-status dpj-status--<?php echo esc_attr($status); ?>"><?php echo esc_html(self::status_label($status)); ?></span>
+            </header>
+            <?php if ($remote_id !== '') : ?>
+                <p class="dpj-social-note"><?php printf(esc_html__('Remote post ID: %s', 'dr-purg-social-syndicator'), esc_html($remote_id)); ?></p>
+            <?php endif; ?>
+            <?php if ($last_error !== '') : ?>
+                <div class="notice notice-error inline"><p><?php echo esc_html($last_error); ?></p></div>
+            <?php endif; ?>
+            <div class="dpj-social-grid">
+                <?php self::render_textarea('facebook_hook', __('Hook', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_facebook_hook', true), 2, 'dpj-facebook-hook'); ?>
+                <?php self::render_textarea('facebook_summary', __('Summary', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_facebook_summary', true), 4, 'dpj-facebook-summary'); ?>
+            </div>
+            <?php self::render_media_picker('facebook_media_id', __('Media', 'dr-purg-social-syndicator'), (int) get_post_meta($post_id, '_dpj_social_facebook_media_id', true)); ?>
+            <?php self::render_input('facebook_link', __('Link', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_facebook_link', true), 'url'); ?>
+            <?php self::render_textarea('facebook_first_comment', __('First comment', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true), 3, 'dpj-facebook-first-comment'); ?>
+            <div class="dpj-social-preview">
+                <h3><?php esc_html_e('Preview text', 'dr-purg-social-syndicator'); ?></h3>
+                <pre><?php echo esc_html(self::facebook_message($post_id)); ?></pre>
+            </div>
+            <p class="dpj-platform__actions">
+                <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="post_facebook"><?php esc_html_e('Post to Facebook', 'dr-purg-social-syndicator'); ?></button>
+                <button class="button" type="submit" name="dpj_social_editor_action" value="reset_facebook"><?php esc_html_e('Reset Facebook posting lock', 'dr-purg-social-syndicator'); ?></button>
+                <button class="button" type="button" data-dpj-copy="#dpj-facebook-hook"><?php esc_html_e('Copy hook', 'dr-purg-social-syndicator'); ?></button>
+                <button class="button" type="button" data-dpj-copy="#dpj-facebook-summary"><?php esc_html_e('Copy summary', 'dr-purg-social-syndicator'); ?></button>
+            </p>
+        </section>
+        <?php
+    }
+
+    private static function render_pinterest_section(int $post_id): void
+    {
+        $status = self::platform_status($post_id, 'pinterest');
+        ?>
+        <section class="dpj-social-card dpj-platform dpj-platform--pinterest">
+            <header class="dpj-platform__header">
+                <h2><?php esc_html_e('Pinterest', 'dr-purg-social-syndicator'); ?></h2>
+                <span class="dpj-status dpj-status--<?php echo esc_attr($status); ?>"><?php echo esc_html(self::status_label($status)); ?></span>
+            </header>
+            <div class="dpj-social-grid">
+                <?php self::render_input('pinterest_title', __('Pin title', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pinterest_title', true)); ?>
+                <?php self::render_input('pinterest_board', __('Board', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pinterest_board', true)); ?>
+            </div>
+            <?php self::render_textarea('pinterest_description', __('Pin description', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pinterest_description', true), 4, 'dpj-pinterest-description'); ?>
+            <?php self::render_media_picker('pinterest_media_id', __('Media', 'dr-purg-social-syndicator'), (int) get_post_meta($post_id, '_dpj_social_pinterest_media_id', true)); ?>
+            <div class="dpj-social-grid">
+                <?php self::render_input('pinterest_url', __('Destination URL', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pinterest_url', true), 'url'); ?>
+                <?php self::render_input('pinterest_alt_text', __('Alt text', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pinterest_alt_text', true)); ?>
+            </div>
+            <p class="dpj-platform__actions">
+                <button class="button" type="button" data-dpj-copy="#dpj-pinterest-description"><?php esc_html_e('Copy description', 'dr-purg-social-syndicator'); ?></button>
+                <button class="button" type="submit" name="dpj_social_editor_action" value="mark_pinterest_posted"><?php esc_html_e('Mark Pinterest posted', 'dr-purg-social-syndicator'); ?></button>
+            </p>
+        </section>
+        <?php
+    }
+
+    private static function render_reddit_section(int $post_id): void
+    {
+        $status = self::platform_status($post_id, 'reddit');
+        ?>
+        <section class="dpj-social-card dpj-platform dpj-platform--reddit">
+            <header class="dpj-platform__header">
+                <h2><?php esc_html_e('Reddit', 'dr-purg-social-syndicator'); ?></h2>
+                <span class="dpj-status dpj-status--<?php echo esc_attr($status); ?>"><?php echo esc_html(self::status_label($status)); ?></span>
+            </header>
+            <div class="dpj-social-grid">
+                <?php self::render_input('reddit_subreddit', __('Subreddit', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_reddit_subreddit', true)); ?>
+                <?php self::render_input('reddit_link', __('Link', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_reddit_link', true), 'url'); ?>
+            </div>
+            <?php self::render_input('reddit_title', __('Post title', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_reddit_title', true)); ?>
+            <?php self::render_textarea('reddit_body', __('Body', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_reddit_body', true), 6, 'dpj-reddit-body'); ?>
+            <?php self::render_textarea('reddit_rules_notes', __('Rules notes', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_reddit_rules_notes', true), 3, 'dpj-reddit-notes'); ?>
+            <p class="dpj-platform__actions">
+                <button class="button" type="button" data-dpj-copy="#dpj-reddit-body"><?php esc_html_e('Copy body', 'dr-purg-social-syndicator'); ?></button>
+                <button class="button" type="submit" name="dpj_social_editor_action" value="mark_reddit_posted"><?php esc_html_e('Mark Reddit posted', 'dr-purg-social-syndicator'); ?></button>
+            </p>
+        </section>
+        <?php
+    }
+
+    private static function render_post_settings_section(int $post_id): void
+    {
+        ?>
+        <section class="dpj-social-card dpj-platform dpj-platform--settings">
+            <h2><?php esc_html_e('Post Settings', 'dr-purg-social-syndicator'); ?></h2>
+            <label class="dpj-check">
+                <input type="checkbox" name="use_featured_image" value="1" <?php checked(get_post_meta($post_id, '_dpj_social_use_featured_image', true), '1'); ?>>
+                <?php esc_html_e('Use featured image by default for new platform drafts.', 'dr-purg-social-syndicator'); ?>
+            </label>
+            <label class="dpj-check">
+                <input type="checkbox" name="redirect_after_publish" value="1" <?php checked(self::post_redirect_enabled($post_id)); ?>>
+                <?php esc_html_e('Open Social Editor after first publish.', 'dr-purg-social-syndicator'); ?>
+            </label>
+            <label class="dpj-check">
+                <input type="checkbox" name="do_not_repost" value="1" <?php checked(get_post_meta($post_id, '_dpj_social_do_not_repost', true), '1'); ?>>
+                <?php esc_html_e('Block duplicate Facebook posting after a remote post ID exists.', 'dr-purg-social-syndicator'); ?>
+            </label>
+            <p><?php printf(esc_html__('Current skip state: %s', 'dr-purg-social-syndicator'), get_post_meta($post_id, '_dpj_social_skip', true) === '1' ? esc_html__('Skipped', 'dr-purg-social-syndicator') : esc_html__('Active', 'dr-purg-social-syndicator')); ?></p>
+        </section>
+        <?php
+    }
+
+    private static function render_input(string $name, string $label, string $value, string $type = 'text'): void
+    {
+        ?>
+        <label class="dpj-field">
+            <span><?php echo esc_html($label); ?></span>
+            <input type="<?php echo esc_attr($type); ?>" name="<?php echo esc_attr($name); ?>" id="dpj-<?php echo esc_attr(str_replace('_', '-', $name)); ?>" value="<?php echo esc_attr($value); ?>">
+        </label>
+        <?php
+    }
+
+    private static function render_textarea(string $name, string $label, string $value, int $rows, string $id = ''): void
+    {
+        $id = $id !== '' ? $id : 'dpj-' . str_replace('_', '-', $name);
+        ?>
+        <label class="dpj-field">
+            <span><?php echo esc_html($label); ?></span>
+            <textarea name="<?php echo esc_attr($name); ?>" id="<?php echo esc_attr($id); ?>" rows="<?php echo esc_attr((string) $rows); ?>"><?php echo esc_textarea($value); ?></textarea>
+        </label>
+        <?php
+    }
+
+    private static function render_media_picker(string $name, string $label, int $media_id): void
+    {
+        $preview = $media_id > 0 ? wp_get_attachment_image($media_id, 'medium', false, ['class' => 'dpj-selected-image']) : '';
+        ?>
+        <div class="dpj-field dpj-media-field">
+            <span><?php echo esc_html($label); ?></span>
+            <input type="hidden" name="<?php echo esc_attr($name); ?>" id="dpj-<?php echo esc_attr(str_replace('_', '-', $name)); ?>" value="<?php echo esc_attr((string) $media_id); ?>" data-dpj-media-input>
+            <div class="dpj-media-preview" data-dpj-media-preview>
+                <?php echo $preview !== '' ? wp_kses_post($preview) : '<span class="dpj-media-empty">' . esc_html__('No image selected', 'dr-purg-social-syndicator') . '</span>'; ?>
+            </div>
+            <p class="dpj-media-actions">
+                <button class="button" type="button" data-dpj-media-select><?php esc_html_e('Choose image', 'dr-purg-social-syndicator'); ?></button>
+                <button class="button" type="button" data-dpj-media-clear><?php esc_html_e('Clear image', 'dr-purg-social-syndicator'); ?></button>
+            </p>
+        </div>
+        <?php
+    }
+
+    private static function facebook_message(int $post_id): string
+    {
+        $parts = array_filter([
+            trim((string) get_post_meta($post_id, '_dpj_social_facebook_hook', true)),
+            trim((string) get_post_meta($post_id, '_dpj_social_facebook_summary', true)),
+            trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true)),
+        ]);
+
+        return implode("\n\n", $parts);
+    }
+
+    private static function post_to_facebook(int $post_id)
+    {
+        $remote_id = trim((string) get_post_meta($post_id, '_dpj_social_facebook_remote_post_id', true));
+        $do_not_repost = (string) get_post_meta($post_id, '_dpj_social_do_not_repost', true) !== '0';
+        if ($remote_id !== '' && $do_not_repost) {
+            $error = __('This article already has a Facebook remote post ID. Reset the posting lock before reposting.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+            update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_FAILED);
+            return new WP_Error('dpj_social_duplicate', $error);
+        }
+
+        $settings = self::settings();
+        $page_id = trim((string) $settings['facebook_page_id']);
+        $token = trim((string) $settings['facebook_page_access_token']);
+        if ($page_id === '' || $token === '') {
+            $error = __('Facebook Page ID and Page Access Token are required in Social Settings.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+            update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_FAILED);
+            return new WP_Error('dpj_social_missing_credentials', $error);
+        }
+
+        $message = self::facebook_message($post_id);
+        if ($message === '') {
+            $error = __('Facebook hook, summary, or link is required before posting.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+            update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_FAILED);
+            return new WP_Error('dpj_social_empty_message', $error);
+        }
+
+        $media_id = (int) get_post_meta($post_id, '_dpj_social_facebook_media_id', true);
+        $image_url = $media_id > 0 ? (string) wp_get_attachment_image_url($media_id, 'full') : '';
+        $graph_version = self::clean_graph_version((string) $settings['facebook_graph_version']);
+        $base = 'https://graph.facebook.com/' . rawurlencode($graph_version) . '/' . rawurlencode($page_id);
+
+        if ($image_url !== '') {
+            $result = self::facebook_request($base . '/photos', [
+                'url' => $image_url,
+                'caption' => $message,
+                'published' => 'true',
+            ], $settings);
+        } else {
+            $result = self::facebook_request($base . '/feed', [
+                'message' => $message,
+                'link' => trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true)),
+            ], $settings);
+        }
+
+        if (is_wp_error($result)) {
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $result->get_error_message());
+            update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_FAILED);
+            return $result;
+        }
+
+        $photo_id = isset($result['id']) ? sanitize_text_field((string) $result['id']) : '';
+        $post_remote_id = isset($result['post_id']) ? sanitize_text_field((string) $result['post_id']) : $photo_id;
+        update_post_meta($post_id, '_dpj_social_facebook_remote_post_id', $post_remote_id);
+        update_post_meta($post_id, '_dpj_social_facebook_remote_photo_id', $photo_id);
+        update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_POSTED);
+        update_post_meta($post_id, '_dpj_social_facebook_posted_at', gmdate('c'));
+        delete_post_meta($post_id, '_dpj_social_facebook_last_error');
+
+        $first_comment = trim((string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true));
+        if ($first_comment !== '' && $post_remote_id !== '') {
+            $comment_result = self::facebook_request('https://graph.facebook.com/' . rawurlencode($graph_version) . '/' . rawurlencode($post_remote_id) . '/comments', [
+                'message' => $first_comment,
+            ], $settings);
+            if (is_wp_error($comment_result)) {
+                update_post_meta($post_id, '_dpj_social_facebook_last_error', sprintf(
+                    /* translators: %s is an API error. */
+                    __('Post was published, but the first comment failed: %s', 'dr-purg-social-syndicator'),
+                    $comment_result->get_error_message()
+                ));
+            } elseif (isset($comment_result['id'])) {
+                update_post_meta($post_id, '_dpj_social_facebook_comment_id', sanitize_text_field((string) $comment_result['id']));
+            }
+        }
+
+        return $result;
+    }
+
+    private static function facebook_request(string $endpoint, array $body, array $settings)
+    {
+        $token = trim((string) $settings['facebook_page_access_token']);
+        $body['access_token'] = $token;
+
+        $secret = trim((string) $settings['facebook_app_secret']);
+        if ($secret !== '') {
+            $body['appsecret_proof'] = hash_hmac('sha256', $token, $secret);
+        }
+
+        $response = wp_remote_post($endpoint, [
+            'timeout' => 20,
+            'body' => $body,
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status = (int) wp_remote_retrieve_response_code($response);
+        $raw = (string) wp_remote_retrieve_body($response);
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return new WP_Error('dpj_social_bad_response', __('Facebook returned an unreadable response.', 'dr-purg-social-syndicator'));
+        }
+
+        if ($status < 200 || $status >= 300 || isset($decoded['error'])) {
+            $message = is_array($decoded['error'] ?? null)
+                ? (string) ($decoded['error']['message'] ?? __('Unknown Facebook API error.', 'dr-purg-social-syndicator'))
+                : __('Facebook API request failed.', 'dr-purg-social-syndicator');
+            return new WP_Error('dpj_social_facebook_error', $message, $decoded);
+        }
+
+        return $decoded;
+    }
+
+    private static function reset_facebook(int $post_id): void
+    {
+        foreach ([
+            '_dpj_social_facebook_remote_post_id',
+            '_dpj_social_facebook_remote_photo_id',
+            '_dpj_social_facebook_comment_id',
+            '_dpj_social_facebook_last_error',
+            '_dpj_social_facebook_posted_at',
+        ] as $key) {
+            delete_post_meta($post_id, $key);
+        }
+
+        update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_DRAFT);
+    }
+}
+
+Dr_Purg_Social_Syndicator::init();
+register_activation_hook(__FILE__, ['Dr_Purg_Social_Syndicator', 'activate']);
