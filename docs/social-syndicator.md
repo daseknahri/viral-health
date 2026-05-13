@@ -13,7 +13,7 @@ The Social Syndicator plugin turns every article into a structured social packag
 
 Scheduled posts are not redirected when cron publishes them. They appear in `Social Queue` with a `Needs social` status.
 
-## Facebook setup
+## Facebook Page API setup
 
 Configure credentials in `Social Queue -> Settings`:
 
@@ -25,7 +25,7 @@ Long-lived Page Access Token
 Graph API version
 ```
 
-The Page token must be allowed to publish to the Facebook Page. The plugin sends reviewed posts to the Page only; it does not post to personal profiles.
+The Page token must be allowed to publish to the Facebook Page. Use a long-lived Page token with `pages_manage_posts` and `pages_read_engagement`. First-comment posting may also require `pages_manage_engagement`. The plugin sends reviewed posts to the Page only; it does not post to personal profiles.
 
 Facebook posts use this message shape:
 

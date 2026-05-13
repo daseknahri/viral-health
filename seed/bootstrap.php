@@ -1472,6 +1472,7 @@ if (wp_get_theme()->get_stylesheet() !== 'kepoli' && wp_get_theme('kepoli')->exi
 }
 
 kepoli_seed_activate_plugin('kepoli-author-tools/kepoli-author-tools.php');
+kepoli_seed_activate_plugin('dr-purg-social-syndicator/dr-purg-social-syndicator.php');
 
 $categories = kepoli_seed_json('/content/categories.json');
 $pages = kepoli_seed_json('/content/pages.json');

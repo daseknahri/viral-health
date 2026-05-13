@@ -48,6 +48,10 @@ const checks = [
     label: 'Histats readiness',
     command: ['node', 'scripts/audit-histats-readiness.mjs'],
   },
+  {
+    label: 'Social Syndicator readiness',
+    command: ['node', 'scripts/audit-social-syndicator-readiness.mjs'],
+  },
 ];
 
 if (liveUrl !== '') {
@@ -140,6 +144,7 @@ Default checks:
 - Ad operations readiness
 - Pre-lander readiness
 - Histats readiness
+- Social Syndicator readiness
 
 With --live:
 - live Ezoic readiness

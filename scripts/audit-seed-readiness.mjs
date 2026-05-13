@@ -5,6 +5,7 @@ const root = process.cwd();
 const failures = [];
 
 const autoseed = readFile('wp-content/mu-plugins/kepoli-autoseed.php');
+const seedBootstrap = readFile('seed/bootstrap.php');
 const compose = readFile('docker-compose.yml');
 const envExample = readFile('.env.example');
 const coolifyDocs = readFile('docs/coolify.md');
@@ -52,6 +53,13 @@ function checkAutoseed() {
     /get_option\('kepoli_seed_version'/,
     /!\$force_reseed\s*&&\s*\$current_version\s*!==\s*''/,
     /!\$force_reseed\s*&&\s*kepoli_autoseed_has_real_content\(\)/,
+  ]);
+
+  requireIncludes('social plugins activation', autoseed + '\n' + seedBootstrap, [
+    /kepoli_autoseed_activate_plugin\('kepoli-author-tools\/kepoli-author-tools\.php'\)/,
+    /kepoli_autoseed_activate_plugin\('dr-purg-social-syndicator\/dr-purg-social-syndicator\.php'\)/,
+    /kepoli_seed_activate_plugin\('kepoli-author-tools\/kepoli-author-tools\.php'\)/,
+    /kepoli_seed_activate_plugin\('dr-purg-social-syndicator\/dr-purg-social-syndicator\.php'\)/,
   ]);
 
   const oldRerunPattern = /get_option\('kepoli_seed_version'\)\s*===\s*\$target_version[\s\S]{0,220}require\s+['"]\/seed\/bootstrap\.php['"]/;

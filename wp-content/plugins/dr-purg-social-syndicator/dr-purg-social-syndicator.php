@@ -548,7 +548,7 @@ final class Dr_Purg_Social_Syndicator
 
         $posts = get_posts([
             'post_type' => 'post',
-            'post_status' => ['publish', 'draft', 'pending', 'future'],
+            'post_status' => ['publish', 'future'],
             'posts_per_page' => 100,
             'orderby' => 'modified',
             'order' => 'DESC',
@@ -631,7 +631,7 @@ final class Dr_Purg_Social_Syndicator
                 <?php wp_nonce_field('dpj_social_save_settings', 'dpj_social_settings_nonce'); ?>
                 <input type="hidden" name="dpj_social_settings_action" value="save">
                 <h2><?php esc_html_e('Facebook Page API', 'dr-purg-social-syndicator'); ?></h2>
-                <p><?php esc_html_e('Use a Facebook Page access token with Page publishing permissions. This plugin does not post to personal profiles.', 'dr-purg-social-syndicator'); ?></p>
+                <p><?php esc_html_e('Use a long-lived Facebook Page access token with pages_manage_posts and pages_read_engagement. First-comment posting may also require pages_manage_engagement. This plugin does not post to personal profiles.', 'dr-purg-social-syndicator'); ?></p>
                 <table class="form-table" role="presentation">
                     <tr>
                         <th scope="row"><label for="facebook_page_id"><?php esc_html_e('Facebook Page ID', 'dr-purg-social-syndicator'); ?></label></th>

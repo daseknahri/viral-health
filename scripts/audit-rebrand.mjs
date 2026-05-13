@@ -66,6 +66,7 @@ const scanRoots = [
   'wp-content/themes/kepoli',
   'wp-content/mu-plugins',
   'wp-content/plugins/kepoli-author-tools',
+  'wp-content/plugins/dr-purg-social-syndicator',
 ];
 
 const identityPatterns = [
