@@ -8,6 +8,7 @@ const plugin = readFile('wp-content/plugins/dr-purg-social-syndicator/dr-purg-so
 const adminJs = readFile('wp-content/plugins/dr-purg-social-syndicator/assets/admin.js');
 const adminCss = readFile('wp-content/plugins/dr-purg-social-syndicator/assets/admin.css');
 const docs = readFile('docs/social-syndicator.md');
+const theme = readFile('wp-content/themes/kepoli/functions.php');
 const autoseed = readFile('wp-content/mu-plugins/kepoli-autoseed.php');
 const seedBootstrap = readFile('seed/bootstrap.php');
 const wordpressEntrypoint = readFile('docker/wordpress/entrypoint.sh');
@@ -118,13 +119,34 @@ function checkPluginContract() {
     /Reset Facebook posting lock/,
   ]);
 
+  requireIncludes('social image converter contract', plugin, [
+    /SOCIAL_IMAGE_VARIANTS/,
+    /generate_social_images_for_post/,
+    /render_social_image_jpeg/,
+    /copy_blurred_cover_background/,
+    /_dpj_social_generated_facebook_media_id/,
+    /_dpj_social_generated_pinterest_media_id/,
+    /_dpj_social_og_media_id/,
+    /wp_insert_attachment/,
+    /wp_generate_attachment_metadata/,
+    /imagejpeg/,
+    /Generate social images/,
+  ]);
+
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
     /wp\.media/,
     /navigator\.clipboard/,
     /data-dpj-copy/,
+    /\.dpj-generated-grid/,
     /\.dpj-social-card/,
     /\.dpj-status--posted/,
     /\.dpj-status--failed/,
+  ]);
+
+  requireIncludes('theme social image filter contract', theme, [
+    /apply_filters\('kepoli_social_image_url'/,
+    /apply_filters\('kepoli_social_image_alt'/,
+    /apply_filters\('kepoli_social_image_dimensions'/,
   ]);
 }
 
@@ -145,6 +167,10 @@ function checkDocs() {
     /Facebook Page API/,
     /Long-lived Page Access Token/,
     /Post to Facebook/,
+    /Social image converter/,
+    /1080x1350/,
+    /1000x1500/,
+    /1200x630/,
     /Pinterest/,
     /Reddit/,
     /Duplicate Facebook posting is blocked/,

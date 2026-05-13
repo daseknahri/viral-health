@@ -114,6 +114,26 @@
   white-space: pre-wrap;
 }
 
+.dpj-generated-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dpj-generated-card {
+  padding: 12px;
+  border: 1px solid #dcdcde;
+  background: #fbfbfc;
+}
+
+.dpj-generated-card h3 {
+  margin: 0 0 4px;
+}
+
+.dpj-generated-card p {
+  margin: 6px 0;
+}
+
 .dpj-status {
   display: inline-flex;
   align-items: center;
@@ -166,7 +186,8 @@
 
 @media (max-width: 782px) {
   .dpj-social-source,
-  .dpj-social-grid {
+  .dpj-social-grid,
+  .dpj-generated-grid {
     grid-template-columns: 1fr;
   }
 

@@ -863,48 +863,63 @@ add_filter('pre_get_document_title', 'kepoli_document_title');
 
 function kepoli_social_image_url(): string
 {
+    $image = '';
+
     if (is_singular()) {
         $image = kepoli_post_featured_image_url(get_the_ID(), 'large');
         if ($image !== '') {
-            return $image;
+            return (string) apply_filters('kepoli_social_image_url', $image);
         }
     }
 
     $social_cover_asset = kepoli_social_cover_asset();
     $social_cover = get_template_directory() . '/assets/img/' . $social_cover_asset . '.jpg';
     if (file_exists($social_cover)) {
-        return kepoli_asset_uri($social_cover_asset, 'jpg');
+        $image = kepoli_asset_uri($social_cover_asset, 'jpg');
+    } else {
+        $image = kepoli_asset_uri('writer-photo', 'jpg');
     }
 
-    return kepoli_asset_uri('writer-photo', 'jpg');
+    return (string) apply_filters('kepoli_social_image_url', $image);
 }
 
 function kepoli_social_image_alt(): string
 {
+    $alt = '';
+
     if (is_singular()) {
         $alt = kepoli_post_featured_image_alt(get_the_ID());
         if ($alt !== '') {
-            return $alt;
+            return (string) apply_filters('kepoli_social_image_alt', $alt);
         }
     }
 
     $fallback = kepoli_current_description() ?: kepoli_brand_description();
-    return kepoli_trim_meta_text($fallback, 32);
+    $alt = kepoli_trim_meta_text($fallback, 32);
+
+    return (string) apply_filters('kepoli_social_image_alt', $alt);
 }
 
 function kepoli_social_image_dimensions(): array
 {
+    $dimensions = [];
+
     if (is_singular()) {
         $image_id = kepoli_post_featured_image_id(get_the_ID());
         if ($image_id) {
             $image = wp_get_attachment_image_src($image_id, 'large');
             if (is_array($image)) {
-                return [(int) ($image[1] ?? 0), (int) ($image[2] ?? 0)];
+                $dimensions = [(int) ($image[1] ?? 0), (int) ($image[2] ?? 0)];
+                $filtered = apply_filters('kepoli_social_image_dimensions', $dimensions);
+                return is_array($filtered) ? $filtered : $dimensions;
             }
         }
     }
 
-    return kepoli_asset_dimensions(kepoli_social_cover_asset());
+    $dimensions = kepoli_asset_dimensions(kepoli_social_cover_asset());
+    $filtered = apply_filters('kepoli_social_image_dimensions', $dimensions);
+
+    return is_array($filtered) ? $filtered : $dimensions;
 }
 
 function kepoli_schema_image_object(string $url, array $dimensions = [], string $caption = ''): array

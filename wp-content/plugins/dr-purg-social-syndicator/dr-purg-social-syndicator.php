@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.1.0';
+    private const VERSION = '0.2.0';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const QUEUE_SLUG = 'dr-purg-social-queue';
     private const EDITOR_SLUG = 'dr-purg-social-editor';
@@ -24,6 +24,29 @@ final class Dr_Purg_Social_Syndicator
     private const STATUS_POSTED = 'posted';
     private const STATUS_FAILED = 'failed';
     private const STATUS_SKIPPED = 'skipped';
+    private const SOCIAL_IMAGE_VARIANTS = [
+        'facebook' => [
+            'label' => 'Facebook photo',
+            'width' => 1080,
+            'height' => 1350,
+            'assign_meta' => '_dpj_social_facebook_media_id',
+            'generated_meta' => '_dpj_social_generated_facebook_media_id',
+        ],
+        'pinterest' => [
+            'label' => 'Pinterest pin',
+            'width' => 1000,
+            'height' => 1500,
+            'assign_meta' => '_dpj_social_pinterest_media_id',
+            'generated_meta' => '_dpj_social_generated_pinterest_media_id',
+        ],
+        'og' => [
+            'label' => 'OG / Reddit preview',
+            'width' => 1200,
+            'height' => 630,
+            'assign_meta' => '_dpj_social_og_media_id',
+            'generated_meta' => '_dpj_social_og_media_id',
+        ],
+    ];
 
     private const PLATFORM_META = [
         'facebook' => [
@@ -38,6 +61,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_facebook_comment_id',
             '_dpj_social_facebook_last_error',
             '_dpj_social_facebook_posted_at',
+            '_dpj_social_generated_facebook_media_id',
         ],
         'pinterest' => [
             '_dpj_social_pinterest_title',
@@ -47,6 +71,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_pinterest_url',
             '_dpj_social_pinterest_alt_text',
             '_dpj_social_pinterest_status',
+            '_dpj_social_generated_pinterest_media_id',
         ],
         'reddit' => [
             '_dpj_social_reddit_subreddit',
@@ -55,6 +80,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_reddit_link',
             '_dpj_social_reddit_rules_notes',
             '_dpj_social_reddit_status',
+            '_dpj_social_og_media_id',
         ],
     ];
 
@@ -66,6 +92,9 @@ final class Dr_Purg_Social_Syndicator
         add_action('transition_post_status', [self::class, 'handle_post_transition'], 10, 3);
         add_filter('redirect_post_location', [self::class, 'maybe_redirect_after_publish'], 10, 2);
         add_filter('post_row_actions', [self::class, 'add_post_row_action'], 10, 2);
+        add_filter('kepoli_social_image_url', [self::class, 'filter_theme_social_image_url']);
+        add_filter('kepoli_social_image_alt', [self::class, 'filter_theme_social_image_alt']);
+        add_filter('kepoli_social_image_dimensions', [self::class, 'filter_theme_social_image_dimensions']);
     }
 
     public static function activate(): void
@@ -325,6 +354,9 @@ final class Dr_Purg_Social_Syndicator
         } elseif ($action === 'reset_facebook') {
             self::reset_facebook($post_id);
             $notice = 'facebook_reset';
+        } elseif ($action === 'generate_social_images') {
+            $result = self::generate_social_images_for_post($post_id);
+            $notice = is_wp_error($result) ? 'images_failed' : 'images_generated';
         } elseif ($action === 'mark_pinterest_posted') {
             update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_POSTED);
             $notice = 'pinterest_posted';
@@ -568,6 +600,8 @@ final class Dr_Purg_Social_Syndicator
             'facebook_posted' => __('Facebook post sent and logged.', 'dr-purg-social-syndicator'),
             'facebook_failed' => __('Facebook posting failed. Review the error in the Facebook section.', 'dr-purg-social-syndicator'),
             'facebook_reset' => __('Facebook posting lock reset. You can post this package again.', 'dr-purg-social-syndicator'),
+            'images_generated' => __('Social images generated and assigned.', 'dr-purg-social-syndicator'),
+            'images_failed' => __('Social image generation failed. Review the converter message.', 'dr-purg-social-syndicator'),
             'pinterest_posted' => __('Pinterest item marked posted.', 'dr-purg-social-syndicator'),
             'reddit_posted' => __('Reddit item marked posted.', 'dr-purg-social-syndicator'),
             'skipped' => __('Social work skipped for this post.', 'dr-purg-social-syndicator'),
@@ -753,6 +787,7 @@ final class Dr_Purg_Social_Syndicator
                 <input type="hidden" name="post_id" value="<?php echo esc_attr((string) $post_id); ?>">
 
                 <?php self::render_source_section($source); ?>
+                <?php self::render_social_image_converter_section($post_id); ?>
                 <?php self::render_facebook_section($post_id); ?>
                 <?php self::render_pinterest_section($post_id); ?>
                 <?php self::render_reddit_section($post_id); ?>
@@ -803,6 +838,49 @@ final class Dr_Purg_Social_Syndicator
             </div>
             <div class="dpj-source-media">
                 <?php echo $source['image_html'] !== '' ? wp_kses_post($source['image_html']) : '<span class="dpj-media-empty">' . esc_html__('No featured image', 'dr-purg-social-syndicator') . '</span>'; ?>
+            </div>
+        </section>
+        <?php
+    }
+
+    private static function render_social_image_converter_section(int $post_id): void
+    {
+        $source_id = self::social_image_source_id($post_id);
+        $source_label = $source_id > 0 ? get_the_title($source_id) : '';
+        $last_error = (string) get_post_meta($post_id, '_dpj_social_image_generation_last_error', true);
+        ?>
+        <section class="dpj-social-card dpj-platform dpj-platform--image-converter">
+            <header class="dpj-platform__header">
+                <h2><?php esc_html_e('Social Image Converter', 'dr-purg-social-syndicator'); ?></h2>
+                <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="generate_social_images"><?php esc_html_e('Generate social images', 'dr-purg-social-syndicator'); ?></button>
+            </header>
+            <?php if ($last_error !== '') : ?>
+                <div class="notice notice-error inline"><p><?php echo esc_html($last_error); ?></p></div>
+            <?php endif; ?>
+            <p class="dpj-social-note">
+                <?php esc_html_e('Creates separate JPG copies for Facebook, Pinterest, and OG/Reddit previews. The original image is never changed.', 'dr-purg-social-syndicator'); ?>
+                <?php if ($source_label !== '') : ?>
+                    <?php printf(esc_html__(' Source: %s', 'dr-purg-social-syndicator'), esc_html($source_label)); ?>
+                <?php endif; ?>
+            </p>
+            <div class="dpj-generated-grid">
+                <?php foreach (self::SOCIAL_IMAGE_VARIANTS as $variant => $config) : ?>
+                    <?php
+                    $media_id = (int) get_post_meta($post_id, $config['generated_meta'], true);
+                    $image = $media_id > 0 ? wp_get_attachment_image($media_id, 'medium', false, ['class' => 'dpj-selected-image']) : '';
+                    $media_url = $media_id > 0 ? wp_get_attachment_url($media_id) : '';
+                    ?>
+                    <div class="dpj-generated-card">
+                        <h3><?php echo esc_html((string) $config['label']); ?></h3>
+                        <p><?php printf(esc_html__('%1$dx%2$d JPG', 'dr-purg-social-syndicator'), (int) $config['width'], (int) $config['height']); ?></p>
+                        <div class="dpj-media-preview">
+                            <?php echo $image !== '' ? wp_kses_post($image) : '<span class="dpj-media-empty">' . esc_html__('Not generated yet', 'dr-purg-social-syndicator') . '</span>'; ?>
+                        </div>
+                        <?php if (is_string($media_url) && $media_url !== '') : ?>
+                            <p><a href="<?php echo esc_url($media_url); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open generated image', 'dr-purg-social-syndicator'); ?></a></p>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
             </div>
         </section>
         <?php
@@ -961,6 +1039,246 @@ final class Dr_Purg_Social_Syndicator
         <?php
     }
 
+    private static function social_image_source_id(int $post_id): int
+    {
+        $candidates = [
+            (int) get_post_thumbnail_id($post_id),
+            (int) get_post_meta($post_id, '_dpj_social_facebook_media_id', true),
+            (int) get_post_meta($post_id, '_dpj_social_pinterest_media_id', true),
+        ];
+
+        foreach ($candidates as $candidate_id) {
+            $candidate_id = self::original_source_media_id($candidate_id);
+            if ($candidate_id > 0 && wp_attachment_is_image($candidate_id)) {
+                return $candidate_id;
+            }
+        }
+
+        return 0;
+    }
+
+    private static function original_source_media_id(int $media_id): int
+    {
+        if ($media_id <= 0) {
+            return 0;
+        }
+
+        $source_id = (int) get_post_meta($media_id, '_dpj_social_generated_source_id', true);
+        return $source_id > 0 ? $source_id : $media_id;
+    }
+
+    private static function generate_social_images_for_post(int $post_id)
+    {
+        $source_id = self::social_image_source_id($post_id);
+        if ($source_id <= 0) {
+            $error = __('Choose a featured image before generating social images.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_image_generation_last_error', $error);
+            return new WP_Error('dpj_social_missing_source_image', $error);
+        }
+
+        $source_path = get_attached_file($source_id);
+        if (!is_string($source_path) || $source_path === '' || !file_exists($source_path)) {
+            $error = __('The source image file could not be found on the server.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_image_generation_last_error', $error);
+            return new WP_Error('dpj_social_missing_source_file', $error);
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+
+        $generated = [];
+        foreach (self::SOCIAL_IMAGE_VARIANTS as $variant => $config) {
+            $attachment_id = self::create_social_image_variant($post_id, $source_id, $source_path, $variant, $config);
+            if (is_wp_error($attachment_id)) {
+                update_post_meta($post_id, '_dpj_social_image_generation_last_error', $attachment_id->get_error_message());
+                return $attachment_id;
+            }
+
+            $attachment_id = (int) $attachment_id;
+            update_post_meta($post_id, $config['generated_meta'], (string) $attachment_id);
+            if (!empty($config['assign_meta'])) {
+                update_post_meta($post_id, $config['assign_meta'], (string) $attachment_id);
+            }
+
+            $generated[$variant] = $attachment_id;
+        }
+
+        update_post_meta($post_id, '_dpj_social_image_generation_last_run', gmdate('c'));
+        delete_post_meta($post_id, '_dpj_social_image_generation_last_error');
+
+        return $generated;
+    }
+
+    private static function create_social_image_variant(int $post_id, int $source_id, string $source_path, string $variant, array $config)
+    {
+        $uploads = wp_upload_dir();
+        if (!empty($uploads['error'])) {
+            return new WP_Error('dpj_social_upload_dir_error', (string) $uploads['error']);
+        }
+
+        $upload_dir = (string) ($uploads['path'] ?? '');
+        if ($upload_dir === '') {
+            return new WP_Error('dpj_social_upload_dir_missing', __('WordPress upload directory is unavailable.', 'dr-purg-social-syndicator'));
+        }
+
+        if (!is_dir($upload_dir) && !wp_mkdir_p($upload_dir)) {
+            return new WP_Error('dpj_social_upload_dir_unwritable', __('WordPress could not create the upload directory.', 'dr-purg-social-syndicator'));
+        }
+
+        $width = (int) $config['width'];
+        $height = (int) $config['height'];
+        $post_slug = sanitize_title((string) get_post_field('post_name', $post_id));
+        if ($post_slug === '') {
+            $post_slug = 'post-' . $post_id;
+        }
+
+        $filename = wp_unique_filename($upload_dir, sprintf('%s-%s-%dx%d.jpg', $post_slug, sanitize_key($variant), $width, $height));
+        $target_path = trailingslashit($upload_dir) . $filename;
+        $rendered = self::render_social_image_jpeg($source_path, $target_path, $width, $height);
+        if (is_wp_error($rendered)) {
+            return $rendered;
+        }
+
+        $attachment_id = wp_insert_attachment(wp_slash([
+            'guid' => trailingslashit((string) ($uploads['url'] ?? '')) . $filename,
+            'post_mime_type' => 'image/jpeg',
+            'post_title' => sprintf('%1$s - %2$s %3$dx%4$d', get_the_title($post_id), (string) $config['label'], $width, $height),
+            'post_status' => 'inherit',
+            'post_parent' => $post_id,
+        ]), $target_path, $post_id, true);
+
+        if (is_wp_error($attachment_id)) {
+            return $attachment_id;
+        }
+
+        $attachment_id = (int) $attachment_id;
+        $metadata = wp_generate_attachment_metadata($attachment_id, $target_path);
+        if (!is_wp_error($metadata) && !empty($metadata)) {
+            wp_update_attachment_metadata($attachment_id, $metadata);
+        }
+
+        $source_alt = trim((string) get_post_meta($source_id, '_wp_attachment_image_alt', true));
+        $alt = $source_alt !== '' ? $source_alt : sprintf(
+            /* translators: %s is the post title. */
+            __('Social image for %s', 'dr-purg-social-syndicator'),
+            get_the_title($post_id)
+        );
+        update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt));
+        update_post_meta($attachment_id, '_dpj_social_generated_variant', sanitize_key($variant));
+        update_post_meta($attachment_id, '_dpj_social_generated_source_id', (string) $source_id);
+        update_post_meta($attachment_id, '_dpj_social_generated_size', $width . 'x' . $height);
+
+        return $attachment_id;
+    }
+
+    private static function render_social_image_jpeg(string $source_path, string $target_path, int $target_width, int $target_height)
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return new WP_Error('dpj_social_gd_missing', __('The PHP GD image extension is required to generate social image copies.', 'dr-purg-social-syndicator'));
+        }
+
+        $info = wp_getimagesize($source_path);
+        if (!is_array($info) || empty($info[0]) || empty($info[1])) {
+            return new WP_Error('dpj_social_bad_image', __('The source image is not a readable image file.', 'dr-purg-social-syndicator'));
+        }
+
+        $source = self::load_gd_image($source_path, (string) ($info['mime'] ?? ''));
+        if (is_wp_error($source)) {
+            return $source;
+        }
+
+        $source_width = imagesx($source);
+        $source_height = imagesy($source);
+        if ($source_width <= 0 || $source_height <= 0) {
+            imagedestroy($source);
+            return new WP_Error('dpj_social_bad_dimensions', __('The source image has invalid dimensions.', 'dr-purg-social-syndicator'));
+        }
+
+        $canvas = imagecreatetruecolor($target_width, $target_height);
+        if (!$canvas) {
+            imagedestroy($source);
+            return new WP_Error('dpj_social_canvas_failed', __('Could not create the social image canvas.', 'dr-purg-social-syndicator'));
+        }
+
+        imageinterlace($canvas, true);
+        $background = imagecolorallocate($canvas, 238, 245, 240);
+        imagefilledrectangle($canvas, 0, 0, $target_width, $target_height, $background);
+
+        self::copy_blurred_cover_background($canvas, $source, $source_width, $source_height, $target_width, $target_height);
+        self::copy_contained_foreground($canvas, $source, $source_width, $source_height, $target_width, $target_height);
+
+        $saved = imagejpeg($canvas, $target_path, 86);
+        imagedestroy($canvas);
+        imagedestroy($source);
+
+        if (!$saved) {
+            return new WP_Error('dpj_social_save_failed', __('Could not save the generated social image.', 'dr-purg-social-syndicator'));
+        }
+
+        return true;
+    }
+
+    private static function load_gd_image(string $path, string $mime)
+    {
+        $image = false;
+
+        if ($mime === 'image/jpeg' && function_exists('imagecreatefromjpeg')) {
+            $image = imagecreatefromjpeg($path);
+        } elseif ($mime === 'image/png' && function_exists('imagecreatefrompng')) {
+            $image = imagecreatefrompng($path);
+        } elseif ($mime === 'image/webp' && function_exists('imagecreatefromwebp')) {
+            $image = imagecreatefromwebp($path);
+        } elseif ($mime === 'image/gif' && function_exists('imagecreatefromgif')) {
+            $image = imagecreatefromgif($path);
+        } else {
+            return new WP_Error('dpj_social_unsupported_image', __('Use a JPG, PNG, WebP, or GIF source image for social image generation.', 'dr-purg-social-syndicator'));
+        }
+
+        if (!$image) {
+            return new WP_Error('dpj_social_image_load_failed', __('WordPress could not load the source image for resizing.', 'dr-purg-social-syndicator'));
+        }
+
+        return $image;
+    }
+
+    private static function copy_blurred_cover_background($canvas, $source, int $source_width, int $source_height, int $target_width, int $target_height): void
+    {
+        $scale = max($target_width / $source_width, $target_height / $source_height);
+        $cover_width = max($target_width, (int) ceil($source_width * $scale));
+        $cover_height = max($target_height, (int) ceil($source_height * $scale));
+        $cover = imagecreatetruecolor($cover_width, $cover_height);
+        if (!$cover) {
+            return;
+        }
+
+        imagecopyresampled($cover, $source, 0, 0, 0, 0, $cover_width, $cover_height, $source_width, $source_height);
+        for ($i = 0; $i < 8; $i++) {
+            imagefilter($cover, IMG_FILTER_GAUSSIAN_BLUR);
+        }
+
+        $source_x = max(0, (int) floor(($cover_width - $target_width) / 2));
+        $source_y = max(0, (int) floor(($cover_height - $target_height) / 2));
+        imagecopy($canvas, $cover, 0, 0, $source_x, $source_y, $target_width, $target_height);
+        imagedestroy($cover);
+
+        $wash = imagecolorallocatealpha($canvas, 245, 248, 246, 32);
+        imagefilledrectangle($canvas, 0, 0, $target_width, $target_height, $wash);
+    }
+
+    private static function copy_contained_foreground($canvas, $source, int $source_width, int $source_height, int $target_width, int $target_height): void
+    {
+        $padding = max(0, (int) round(min($target_width, $target_height) * 0.045));
+        $available_width = max(1, $target_width - ($padding * 2));
+        $available_height = max(1, $target_height - ($padding * 2));
+        $scale = min($available_width / $source_width, $available_height / $source_height);
+        $foreground_width = max(1, (int) floor($source_width * $scale));
+        $foreground_height = max(1, (int) floor($source_height * $scale));
+        $x = (int) floor(($target_width - $foreground_width) / 2);
+        $y = (int) floor(($target_height - $foreground_height) / 2);
+
+        imagecopyresampled($canvas, $source, $x, $y, 0, 0, $foreground_width, $foreground_height, $source_width, $source_height);
+    }
+
     private static function facebook_message(int $post_id): string
     {
         $link = trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true));
@@ -1110,6 +1428,62 @@ final class Dr_Purg_Social_Syndicator
         }
 
         update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_DRAFT);
+    }
+
+    public static function filter_theme_social_image_url(string $url): string
+    {
+        $media_id = self::public_og_media_id();
+        if ($media_id <= 0) {
+            return $url;
+        }
+
+        $image = wp_get_attachment_image_url($media_id, 'full');
+        return is_string($image) && $image !== '' ? $image : $url;
+    }
+
+    public static function filter_theme_social_image_alt(string $alt): string
+    {
+        $media_id = self::public_og_media_id();
+        if ($media_id <= 0) {
+            return $alt;
+        }
+
+        $generated_alt = trim((string) get_post_meta($media_id, '_wp_attachment_image_alt', true));
+        return $generated_alt !== '' ? $generated_alt : $alt;
+    }
+
+    public static function filter_theme_social_image_dimensions(array $dimensions): array
+    {
+        $media_id = self::public_og_media_id();
+        if ($media_id <= 0) {
+            return $dimensions;
+        }
+
+        $image = wp_get_attachment_image_src($media_id, 'full');
+        if (!is_array($image)) {
+            return $dimensions;
+        }
+
+        return [(int) ($image[1] ?? 0), (int) ($image[2] ?? 0)];
+    }
+
+    private static function public_og_media_id(): int
+    {
+        if (!is_singular('post')) {
+            return 0;
+        }
+
+        $post_id = (int) get_queried_object_id();
+        if ($post_id <= 0) {
+            return 0;
+        }
+
+        $media_id = (int) get_post_meta($post_id, '_dpj_social_og_media_id', true);
+        if ($media_id <= 0 || !wp_attachment_is_image($media_id)) {
+            return 0;
+        }
+
+        return $media_id;
     }
 }
 
