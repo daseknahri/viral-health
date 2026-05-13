@@ -375,6 +375,19 @@ final class Dr_Purg_Social_Syndicator
             update_post_meta($post_id, $meta_key, $value);
         }
 
+        $facebook_link = trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true));
+        if ($facebook_link !== '') {
+            $facebook_summary = self::strip_article_url_from_text(
+                (string) get_post_meta($post_id, '_dpj_social_facebook_summary', true),
+                $facebook_link
+            );
+            update_post_meta($post_id, '_dpj_social_facebook_summary', $facebook_summary);
+
+            if (trim((string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true)) === '') {
+                update_post_meta($post_id, '_dpj_social_facebook_first_comment', self::default_facebook_first_comment($facebook_link));
+            }
+        }
+
         update_post_meta($post_id, '_dpj_social_facebook_media_id', isset($_POST['facebook_media_id']) ? (string) absint($_POST['facebook_media_id']) : '0');
         update_post_meta($post_id, '_dpj_social_pinterest_media_id', isset($_POST['pinterest_media_id']) ? (string) absint($_POST['pinterest_media_id']) : '0');
         update_post_meta($post_id, '_dpj_social_use_featured_image', isset($_POST['use_featured_image']) ? '1' : '0');
@@ -410,7 +423,7 @@ final class Dr_Purg_Social_Syndicator
         self::maybe_set_meta($post_id, '_dpj_social_facebook_summary', $intro);
         self::maybe_set_meta($post_id, '_dpj_social_facebook_link', $permalink);
         self::maybe_set_meta($post_id, '_dpj_social_facebook_media_id', (string) $featured_id);
-        self::maybe_set_meta($post_id, '_dpj_social_facebook_first_comment', '');
+        self::maybe_set_meta($post_id, '_dpj_social_facebook_first_comment', self::default_facebook_first_comment($permalink));
         self::maybe_set_meta($post_id, '_dpj_social_facebook_status', self::STATUS_NEEDS);
 
         self::maybe_set_meta($post_id, '_dpj_social_pinterest_title', $title);
@@ -446,6 +459,46 @@ final class Dr_Purg_Social_Syndicator
         }
 
         update_post_meta($post_id, $key, $value);
+    }
+
+    private static function default_facebook_first_comment(string $permalink): string
+    {
+        $permalink = trim($permalink);
+        if ($permalink === '') {
+            return '';
+        }
+
+        return sprintf(
+            /* translators: %s is the article URL. */
+            __('Read the full article here: %s', 'dr-purg-social-syndicator'),
+            $permalink
+        );
+    }
+
+    private static function strip_article_url_from_text(string $text, string $permalink): string
+    {
+        $text = trim($text);
+        $permalink = trim($permalink);
+        if ($text === '' || $permalink === '') {
+            return $text;
+        }
+
+        $variants = array_unique([
+            $permalink,
+            untrailingslashit($permalink),
+            trailingslashit($permalink),
+        ]);
+
+        foreach ($variants as $variant) {
+            if ($variant !== '') {
+                $text = str_replace($variant, '', $text);
+            }
+        }
+
+        $text = (string) preg_replace("/[ \t]+\n/", "\n", $text);
+        $text = (string) preg_replace("/\n{3,}/", "\n\n", $text);
+
+        return trim($text);
     }
 
     private static function source_intro(int $post_id): string
@@ -782,12 +835,15 @@ final class Dr_Purg_Social_Syndicator
             <div class="dpj-social-preview">
                 <h3><?php esc_html_e('Preview text', 'dr-purg-social-syndicator'); ?></h3>
                 <pre><?php echo esc_html(self::facebook_message($post_id)); ?></pre>
+                <h3><?php esc_html_e('First comment preview', 'dr-purg-social-syndicator'); ?></h3>
+                <pre><?php echo esc_html((string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true)); ?></pre>
             </div>
             <p class="dpj-platform__actions">
                 <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="post_facebook"><?php esc_html_e('Post to Facebook', 'dr-purg-social-syndicator'); ?></button>
                 <button class="button" type="submit" name="dpj_social_editor_action" value="reset_facebook"><?php esc_html_e('Reset Facebook posting lock', 'dr-purg-social-syndicator'); ?></button>
                 <button class="button" type="button" data-dpj-copy="#dpj-facebook-hook"><?php esc_html_e('Copy hook', 'dr-purg-social-syndicator'); ?></button>
                 <button class="button" type="button" data-dpj-copy="#dpj-facebook-summary"><?php esc_html_e('Copy summary', 'dr-purg-social-syndicator'); ?></button>
+                <button class="button" type="button" data-dpj-copy="#dpj-facebook-first-comment"><?php esc_html_e('Copy first comment', 'dr-purg-social-syndicator'); ?></button>
             </p>
         </section>
         <?php
@@ -907,10 +963,14 @@ final class Dr_Purg_Social_Syndicator
 
     private static function facebook_message(int $post_id): string
     {
+        $link = trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true));
+        $summary = self::strip_article_url_from_text(
+            trim((string) get_post_meta($post_id, '_dpj_social_facebook_summary', true)),
+            $link
+        );
         $parts = array_filter([
             trim((string) get_post_meta($post_id, '_dpj_social_facebook_hook', true)),
-            trim((string) get_post_meta($post_id, '_dpj_social_facebook_summary', true)),
-            trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true)),
+            $summary,
         ]);
 
         return implode("\n\n", $parts);
@@ -939,10 +999,17 @@ final class Dr_Purg_Social_Syndicator
 
         $message = self::facebook_message($post_id);
         if ($message === '') {
-            $error = __('Facebook hook, summary, or link is required before posting.', 'dr-purg-social-syndicator');
+            $error = __('Facebook hook or summary is required before posting.', 'dr-purg-social-syndicator');
             update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
             update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_FAILED);
             return new WP_Error('dpj_social_empty_message', $error);
+        }
+
+        $facebook_link = trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true));
+        $first_comment = trim((string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true));
+        if ($first_comment === '' && $facebook_link !== '') {
+            $first_comment = self::default_facebook_first_comment($facebook_link);
+            update_post_meta($post_id, '_dpj_social_facebook_first_comment', $first_comment);
         }
 
         $media_id = (int) get_post_meta($post_id, '_dpj_social_facebook_media_id', true);
@@ -959,7 +1026,6 @@ final class Dr_Purg_Social_Syndicator
         } else {
             $result = self::facebook_request($base . '/feed', [
                 'message' => $message,
-                'link' => trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true)),
             ], $settings);
         }
 
@@ -977,7 +1043,6 @@ final class Dr_Purg_Social_Syndicator
         update_post_meta($post_id, '_dpj_social_facebook_posted_at', gmdate('c'));
         delete_post_meta($post_id, '_dpj_social_facebook_last_error');
 
-        $first_comment = trim((string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true));
         if ($first_comment !== '' && $post_remote_id !== '') {
             $comment_result = self::facebook_request('https://graph.facebook.com/' . rawurlencode($graph_version) . '/' . rawurlencode($post_remote_id) . '/comments', [
                 'message' => $first_comment,

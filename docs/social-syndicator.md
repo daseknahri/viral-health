@@ -33,11 +33,15 @@ Facebook posts use this message shape:
 Hook
 
 Summary
-
-Article URL
 ```
 
-If a social image is selected, the plugin posts through the Page photos endpoint using the selected image URL and caption. If no image is selected, it falls back to the Page feed endpoint with the article link.
+The article URL is kept out of the main Facebook post text. New social drafts fill the first comment with this default CTA:
+
+```text
+Read the full article here: Article URL
+```
+
+If a social image is selected, the plugin posts through the Page photos endpoint using the selected image URL and caption. If no image is selected, it falls back to the Page feed endpoint with the reviewed text only. The first comment is posted after the Page post is created when the token has comment permission.
 
 ## Safety
 

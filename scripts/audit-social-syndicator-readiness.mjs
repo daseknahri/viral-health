@@ -111,6 +111,8 @@ function checkPluginContract() {
     /\/photos/,
     /\/feed/,
     /\/comments/,
+    /default_facebook_first_comment/,
+    /strip_article_url_from_text/,
     /appsecret_proof/,
     /wp_remote_post/,
     /Reset Facebook posting lock/,
