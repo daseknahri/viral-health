@@ -24,6 +24,7 @@ Meta App ID
 Meta App Secret
 Long-lived Page Access Token
 Graph API version
+Pixazo API key
 ```
 
 The Page token must be allowed to publish to the Facebook Page. Use a long-lived Page token with `pages_manage_posts` and `pages_read_engagement`. First-comment posting may also require `pages_manage_engagement`. The plugin sends reviewed posts to the Page only; it does not post to personal profiles.
@@ -58,11 +59,26 @@ The generated image uses the source image fitted inside the target canvas with a
 
 The Reddit media field is mostly a workflow aid. For link posts, Reddit normally pulls the preview image from the article's Open Graph tags. The field gives you a visible reference and a copyable image URL for manual image-post workflows.
 
+## Pixazo image testing
+
+The Social Editor includes an optional `AI Image Generator` section for Pixazo SDXL v1.0 Free. Add the Pixazo API key in `Social Queue -> Settings`, then review or rewrite the prompt on each post before clicking `Generate Pixazo images`.
+
+Pixazo generation creates three new Media Library attachments and assigns them to the platform fields:
+
+```text
+Facebook AI image: 819x1024
+Pinterest AI image: 683x1024
+OG / Reddit AI image: 1024x538
+```
+
+These dimensions keep the correct platform aspect ratios while staying inside the free SDXL test resolution range. Nothing is posted automatically; the generated images are drafts for review.
+
 ## Safety
 
 - Duplicate Facebook posting is blocked after a remote post ID exists.
 - Use `Reset Facebook posting lock` only when you intentionally want to repost.
 - Failed API responses are saved in the Facebook section.
 - Generated social images are new attachments; the original featured image is not modified.
+- Pixazo images are generated only after a user clicks the button, and API errors stay inside the editor.
 - Reddit remains manual-only to avoid account and subreddit spam risk.
-- AI generation buttons are intentionally not part of v1; the structured fields are ready for later AI helpers.
+- Text-generation helpers are still future work; Pixazo is image-generation only.

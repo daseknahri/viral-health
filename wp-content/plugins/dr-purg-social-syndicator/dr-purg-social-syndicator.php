@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,8 +13,9 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.2.0';
+    private const VERSION = '0.3.0';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
+    private const PIXAZO_SDXL_FREE_ENDPOINT = 'https://gateway.pixazo.ai/getImage/v1/getSDXLImage';
     private const QUEUE_SLUG = 'dr-purg-social-queue';
     private const EDITOR_SLUG = 'dr-purg-social-editor';
     private const SETTINGS_SLUG = 'dr-purg-social-settings';
@@ -47,6 +48,26 @@ final class Dr_Purg_Social_Syndicator
             'generated_meta' => '_dpj_social_og_media_id',
         ],
     ];
+    private const PIXAZO_PLATFORM_VARIANTS = [
+        'facebook' => [
+            'label' => 'Facebook AI image',
+            'width' => 819,
+            'height' => 1024,
+            'assign_meta' => ['_dpj_social_facebook_media_id', '_dpj_social_generated_facebook_media_id'],
+        ],
+        'pinterest' => [
+            'label' => 'Pinterest AI image',
+            'width' => 683,
+            'height' => 1024,
+            'assign_meta' => ['_dpj_social_pinterest_media_id', '_dpj_social_generated_pinterest_media_id'],
+        ],
+        'og' => [
+            'label' => 'OG / Reddit AI image',
+            'width' => 1024,
+            'height' => 538,
+            'assign_meta' => ['_dpj_social_og_media_id', '_dpj_social_reddit_media_id'],
+        ],
+    ];
 
     private const PLATFORM_META = [
         'facebook' => [
@@ -62,6 +83,10 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_facebook_last_error',
             '_dpj_social_facebook_posted_at',
             '_dpj_social_generated_facebook_media_id',
+            '_dpj_social_pixazo_prompt',
+            '_dpj_social_pixazo_negative_prompt',
+            '_dpj_social_pixazo_last_error',
+            '_dpj_social_pixazo_last_run',
         ],
         'pinterest' => [
             '_dpj_social_pinterest_title',
@@ -114,6 +139,8 @@ final class Dr_Purg_Social_Syndicator
             'facebook_app_secret' => '',
             'facebook_page_access_token' => '',
             'facebook_graph_version' => 'v24.0',
+            'pixazo_api_key' => '',
+            'pixazo_model' => 'sdxl_v1_free',
             'redirect_after_publish' => '1',
         ];
     }
@@ -324,6 +351,8 @@ final class Dr_Purg_Social_Syndicator
             'facebook_app_secret' => isset($_POST['facebook_app_secret']) ? sanitize_text_field(wp_unslash((string) $_POST['facebook_app_secret'])) : '',
             'facebook_page_access_token' => isset($_POST['facebook_page_access_token']) ? sanitize_text_field(wp_unslash((string) $_POST['facebook_page_access_token'])) : '',
             'facebook_graph_version' => isset($_POST['facebook_graph_version']) ? self::clean_graph_version(sanitize_text_field(wp_unslash((string) $_POST['facebook_graph_version']))) : 'v24.0',
+            'pixazo_api_key' => isset($_POST['pixazo_api_key']) ? sanitize_text_field(wp_unslash((string) $_POST['pixazo_api_key'])) : '',
+            'pixazo_model' => 'sdxl_v1_free',
             'redirect_after_publish' => isset($_POST['redirect_after_publish']) ? '1' : '0',
         ];
 
@@ -358,6 +387,9 @@ final class Dr_Purg_Social_Syndicator
         } elseif ($action === 'generate_social_images') {
             $result = self::generate_social_images_for_post($post_id);
             $notice = is_wp_error($result) ? 'images_failed' : 'images_generated';
+        } elseif ($action === 'generate_pixazo_images') {
+            $result = self::generate_pixazo_images_for_post($post_id);
+            $notice = is_wp_error($result) ? 'pixazo_failed' : 'pixazo_generated';
         } elseif ($action === 'mark_pinterest_posted') {
             update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_POSTED);
             $notice = 'pinterest_posted';
@@ -383,6 +415,8 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_facebook_summary' => 'facebook_summary',
             '_dpj_social_facebook_link' => 'facebook_link',
             '_dpj_social_facebook_first_comment' => 'facebook_first_comment',
+            '_dpj_social_pixazo_prompt' => 'pixazo_prompt',
+            '_dpj_social_pixazo_negative_prompt' => 'pixazo_negative_prompt',
             '_dpj_social_pinterest_title' => 'pinterest_title',
             '_dpj_social_pinterest_description' => 'pinterest_description',
             '_dpj_social_pinterest_board' => 'pinterest_board',
@@ -399,7 +433,7 @@ final class Dr_Purg_Social_Syndicator
             $value = isset($_POST[$field_name]) ? wp_unslash((string) $_POST[$field_name]) : '';
             if (str_ends_with($meta_key, '_link') || str_ends_with($meta_key, '_url')) {
                 $value = esc_url_raw(trim($value));
-            } elseif (str_contains($meta_key, 'body') || str_contains($meta_key, 'summary') || str_contains($meta_key, 'description') || str_contains($meta_key, 'comment') || str_contains($meta_key, 'notes')) {
+            } elseif (str_contains($meta_key, 'body') || str_contains($meta_key, 'summary') || str_contains($meta_key, 'description') || str_contains($meta_key, 'comment') || str_contains($meta_key, 'notes') || str_contains($meta_key, 'prompt')) {
                 $value = sanitize_textarea_field($value);
             } else {
                 $value = sanitize_text_field($value);
@@ -461,6 +495,8 @@ final class Dr_Purg_Social_Syndicator
         self::maybe_set_meta($post_id, '_dpj_social_facebook_media_id', (string) $featured_id);
         self::maybe_set_meta($post_id, '_dpj_social_facebook_first_comment', self::default_facebook_first_comment($permalink));
         self::maybe_set_meta($post_id, '_dpj_social_facebook_status', self::STATUS_NEEDS);
+        self::maybe_set_meta($post_id, '_dpj_social_pixazo_prompt', self::default_pixazo_prompt($post_id));
+        self::maybe_set_meta($post_id, '_dpj_social_pixazo_negative_prompt', self::default_pixazo_negative_prompt());
 
         self::maybe_set_meta($post_id, '_dpj_social_pinterest_title', $title);
         self::maybe_set_meta($post_id, '_dpj_social_pinterest_description', $intro);
@@ -510,6 +546,30 @@ final class Dr_Purg_Social_Syndicator
             __('Read the full article here: %s', 'dr-purg-social-syndicator'),
             $permalink
         );
+    }
+
+    private static function default_pixazo_prompt(int $post_id): string
+    {
+        $title = get_the_title($post_id);
+        $intro = self::source_intro($post_id);
+        $categories = implode(', ', wp_get_post_categories($post_id, ['fields' => 'names']));
+
+        return trim(sprintf(
+            "Create a realistic, click-worthy editorial health image for a mobile viral health article.\nArticle title: %s\nIntro angle: %s\nCategory: %s\nVisual direction: human-centered, modern home or clinic-adjacent setting, clear body-signal theme, clean natural light, sage green and burgundy accents, trustworthy but scroll-stopping, no text inside the image, no logos, no medical claims.",
+            $title,
+            $intro,
+            $categories
+        ));
+    }
+
+    private static function default_pixazo_negative_prompt(): string
+    {
+        return 'text, words, captions, logo, watermark, gore, blood, surgery, scary hospital, panic, before and after, miracle cure, pills spilling, deformed hands, extra fingers, distorted face, blurry, low quality, spammy clickbait';
+    }
+
+    private static function pixazo_generated_meta_key(string $variant): string
+    {
+        return '_dpj_social_pixazo_' . sanitize_key($variant) . '_media_id';
     }
 
     private static function strip_article_url_from_text(string $text, string $permalink): string
@@ -607,6 +667,8 @@ final class Dr_Purg_Social_Syndicator
             'facebook_reset' => __('Facebook posting lock reset. You can post this package again.', 'dr-purg-social-syndicator'),
             'images_generated' => __('Social images generated and assigned.', 'dr-purg-social-syndicator'),
             'images_failed' => __('Social image generation failed. Review the converter message.', 'dr-purg-social-syndicator'),
+            'pixazo_generated' => __('Pixazo images generated and assigned.', 'dr-purg-social-syndicator'),
+            'pixazo_failed' => __('Pixazo image generation failed. Review the AI image generator message.', 'dr-purg-social-syndicator'),
             'pinterest_posted' => __('Pinterest item marked posted.', 'dr-purg-social-syndicator'),
             'reddit_posted' => __('Reddit item marked posted.', 'dr-purg-social-syndicator'),
             'skipped' => __('Social work skipped for this post.', 'dr-purg-social-syndicator'),
@@ -746,6 +808,13 @@ final class Dr_Purg_Social_Syndicator
                         <td><input class="regular-text" id="facebook_graph_version" name="facebook_graph_version" value="<?php echo esc_attr(self::clean_graph_version($settings['facebook_graph_version'])); ?>" placeholder="v24.0"></td>
                     </tr>
                     <tr>
+                        <th scope="row"><label for="pixazo_api_key"><?php esc_html_e('Pixazo API key', 'dr-purg-social-syndicator'); ?></label></th>
+                        <td>
+                            <input class="regular-text" type="password" id="pixazo_api_key" name="pixazo_api_key" value="<?php echo esc_attr($settings['pixazo_api_key']); ?>" autocomplete="new-password">
+                            <p class="description"><?php esc_html_e('Used only when you click Generate Pixazo images. The first test provider is Pixazo SDXL v1.0 Free.', 'dr-purg-social-syndicator'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
                         <th scope="row"><?php esc_html_e('Publishing workflow', 'dr-purg-social-syndicator'); ?></th>
                         <td>
                             <label>
@@ -792,6 +861,7 @@ final class Dr_Purg_Social_Syndicator
                 <input type="hidden" name="post_id" value="<?php echo esc_attr((string) $post_id); ?>">
 
                 <?php self::render_source_section($source); ?>
+                <?php self::render_pixazo_section($post_id); ?>
                 <?php self::render_social_image_converter_section($post_id); ?>
                 <?php self::render_facebook_section($post_id); ?>
                 <?php self::render_pinterest_section($post_id); ?>
@@ -843,6 +913,53 @@ final class Dr_Purg_Social_Syndicator
             </div>
             <div class="dpj-source-media">
                 <?php echo $source['image_html'] !== '' ? wp_kses_post($source['image_html']) : '<span class="dpj-media-empty">' . esc_html__('No featured image', 'dr-purg-social-syndicator') . '</span>'; ?>
+            </div>
+        </section>
+        <?php
+    }
+
+    private static function render_pixazo_section(int $post_id): void
+    {
+        $settings = self::settings();
+        $has_key = trim((string) $settings['pixazo_api_key']) !== '';
+        $last_error = (string) get_post_meta($post_id, '_dpj_social_pixazo_last_error', true);
+        $last_run = (string) get_post_meta($post_id, '_dpj_social_pixazo_last_run', true);
+        ?>
+        <section class="dpj-social-card dpj-platform dpj-platform--pixazo">
+            <header class="dpj-platform__header">
+                <h2><?php esc_html_e('AI Image Generator', 'dr-purg-social-syndicator'); ?></h2>
+                <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="generate_pixazo_images" <?php disabled(!$has_key); ?>><?php esc_html_e('Generate Pixazo images', 'dr-purg-social-syndicator'); ?></button>
+            </header>
+            <?php if (!$has_key) : ?>
+                <div class="notice notice-warning inline"><p><?php esc_html_e('Add your Pixazo API key in Social Settings before generating images.', 'dr-purg-social-syndicator'); ?></p></div>
+            <?php endif; ?>
+            <?php if ($last_error !== '') : ?>
+                <div class="notice notice-error inline"><p><?php echo esc_html($last_error); ?></p></div>
+            <?php endif; ?>
+            <?php if ($last_run !== '') : ?>
+                <p class="dpj-social-note"><?php printf(esc_html__('Last Pixazo run: %s', 'dr-purg-social-syndicator'), esc_html($last_run)); ?></p>
+            <?php endif; ?>
+            <p class="dpj-social-note"><?php esc_html_e('Generates separate reviewable images for Facebook, Pinterest, and OG/Reddit using Pixazo SDXL v1.0 Free. No image is posted automatically.', 'dr-purg-social-syndicator'); ?></p>
+            <?php self::render_textarea('pixazo_prompt', __('Image prompt', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pixazo_prompt', true), 6, 'dpj-pixazo-prompt'); ?>
+            <?php self::render_textarea('pixazo_negative_prompt', __('Negative prompt', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pixazo_negative_prompt', true), 3, 'dpj-pixazo-negative-prompt'); ?>
+            <div class="dpj-generated-grid">
+                <?php foreach (self::PIXAZO_PLATFORM_VARIANTS as $variant => $config) : ?>
+                    <?php
+                    $media_id = (int) get_post_meta($post_id, self::pixazo_generated_meta_key($variant), true);
+                    $image = $media_id > 0 ? wp_get_attachment_image($media_id, 'medium', false, ['class' => 'dpj-selected-image']) : '';
+                    $media_url = $media_id > 0 ? wp_get_attachment_url($media_id) : '';
+                    ?>
+                    <div class="dpj-generated-card">
+                        <h3><?php echo esc_html((string) $config['label']); ?></h3>
+                        <p><?php printf(esc_html__('%1$dx%2$d, platform aspect', 'dr-purg-social-syndicator'), (int) $config['width'], (int) $config['height']); ?></p>
+                        <div class="dpj-media-preview">
+                            <?php echo $image !== '' ? wp_kses_post($image) : '<span class="dpj-media-empty">' . esc_html__('Not generated yet', 'dr-purg-social-syndicator') . '</span>'; ?>
+                        </div>
+                        <?php if (is_string($media_url) && $media_url !== '') : ?>
+                            <p><a href="<?php echo esc_url($media_url); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open Pixazo image', 'dr-purg-social-syndicator'); ?></a></p>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
             </div>
         </section>
         <?php
@@ -1084,6 +1201,198 @@ final class Dr_Purg_Social_Syndicator
 
         $source_id = (int) get_post_meta($media_id, '_dpj_social_generated_source_id', true);
         return $source_id > 0 ? $source_id : $media_id;
+    }
+
+    private static function generate_pixazo_images_for_post(int $post_id)
+    {
+        $settings = self::settings();
+        $api_key = trim((string) $settings['pixazo_api_key']);
+        if ($api_key === '') {
+            $error = __('Pixazo API key is required in Social Settings.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_pixazo_last_error', $error);
+            return new WP_Error('dpj_social_pixazo_missing_key', $error);
+        }
+
+        $base_prompt = trim((string) get_post_meta($post_id, '_dpj_social_pixazo_prompt', true));
+        if ($base_prompt === '') {
+            $base_prompt = self::default_pixazo_prompt($post_id);
+            update_post_meta($post_id, '_dpj_social_pixazo_prompt', $base_prompt);
+        }
+
+        $negative_prompt = trim((string) get_post_meta($post_id, '_dpj_social_pixazo_negative_prompt', true));
+        if ($negative_prompt === '') {
+            $negative_prompt = self::default_pixazo_negative_prompt();
+            update_post_meta($post_id, '_dpj_social_pixazo_negative_prompt', $negative_prompt);
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+        $generated = [];
+        foreach (self::PIXAZO_PLATFORM_VARIANTS as $variant => $config) {
+            $prompt = self::platform_pixazo_prompt($base_prompt, $variant, $config);
+            $image_url = self::request_pixazo_image_url($prompt, $negative_prompt, (int) $config['width'], (int) $config['height'], $api_key);
+            if (is_wp_error($image_url)) {
+                update_post_meta($post_id, '_dpj_social_pixazo_last_error', $image_url->get_error_message());
+                return $image_url;
+            }
+
+            $attachment_id = self::sideload_pixazo_image($post_id, (string) $image_url, $variant, $config);
+            if (is_wp_error($attachment_id)) {
+                update_post_meta($post_id, '_dpj_social_pixazo_last_error', $attachment_id->get_error_message());
+                return $attachment_id;
+            }
+
+            $attachment_id = (int) $attachment_id;
+            update_post_meta($post_id, self::pixazo_generated_meta_key($variant), (string) $attachment_id);
+            foreach ((array) $config['assign_meta'] as $assign_meta_key) {
+                update_post_meta($post_id, (string) $assign_meta_key, (string) $attachment_id);
+            }
+
+            $generated[$variant] = $attachment_id;
+        }
+
+        update_post_meta($post_id, '_dpj_social_pixazo_last_run', gmdate('c'));
+        delete_post_meta($post_id, '_dpj_social_pixazo_last_error');
+
+        return $generated;
+    }
+
+    private static function platform_pixazo_prompt(string $base_prompt, string $variant, array $config): string
+    {
+        $platform_notes = [
+            'facebook' => 'Composition for Facebook mobile feed, portrait 4:5 feel, strong center subject, readable at small size, natural expression, high curiosity.',
+            'pinterest' => 'Composition for Pinterest pin, tall vertical 2:3 feel, clean lifestyle-health visual, strong top-to-bottom visual flow, no text overlay.',
+            'og' => 'Composition for link preview and Reddit/Open Graph, wide 1.91:1 feel, main subject centered with safe margins, clear visual story.',
+        ];
+
+        return trim($base_prompt . "\nPlatform image: " . ($platform_notes[$variant] ?? '') . sprintf(
+            "\nGenerate at %dx%d. Avoid embedded text, logos, watermarks, scary medical imagery, and exaggerated medical claims.",
+            (int) $config['width'],
+            (int) $config['height']
+        ));
+    }
+
+    private static function request_pixazo_image_url(string $prompt, string $negative_prompt, int $width, int $height, string $api_key)
+    {
+        $response = wp_remote_post(self::PIXAZO_SDXL_FREE_ENDPOINT, [
+            'timeout' => 90,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'Cache-Control' => 'no-cache',
+                'Ocp-Apim-Subscription-Key' => $api_key,
+            ],
+            'body' => wp_json_encode([
+                'prompt' => $prompt,
+                'negative_prompt' => $negative_prompt,
+                'width' => $width,
+                'height' => $height,
+                'num_steps' => 20,
+                'guidance_scale' => 5,
+                'seed' => wp_rand(1, 2147483647),
+            ]),
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status = (int) wp_remote_retrieve_response_code($response);
+        $raw = (string) wp_remote_retrieve_body($response);
+        $decoded = json_decode($raw, true);
+        if ($status < 200 || $status >= 300) {
+            $message = is_array($decoded) && isset($decoded['message'])
+                ? (string) $decoded['message']
+                : __('Pixazo API request failed.', 'dr-purg-social-syndicator');
+            return new WP_Error('dpj_social_pixazo_http_error', $message, $decoded);
+        }
+
+        $image_url = self::extract_pixazo_image_url(is_array($decoded) ? $decoded : []);
+        if ($image_url === '') {
+            return new WP_Error('dpj_social_pixazo_no_image', __('Pixazo did not return an image URL.', 'dr-purg-social-syndicator'), $decoded);
+        }
+
+        return $image_url;
+    }
+
+    private static function extract_pixazo_image_url(array $decoded): string
+    {
+        foreach (['imageUrl', 'image_url', 'url', 'output'] as $key) {
+            if (isset($decoded[$key]) && is_string($decoded[$key]) && filter_var($decoded[$key], FILTER_VALIDATE_URL)) {
+                return $decoded[$key];
+            }
+        }
+
+        if (isset($decoded['output']) && is_array($decoded['output'])) {
+            foreach ($decoded['output'] as $item) {
+                if (is_string($item) && filter_var($item, FILTER_VALIDATE_URL)) {
+                    return $item;
+                }
+                if (is_array($item)) {
+                    foreach (['imageUrl', 'image_url', 'url'] as $key) {
+                        if (isset($item[$key]) && is_string($item[$key]) && filter_var($item[$key], FILTER_VALIDATE_URL)) {
+                            return $item[$key];
+                        }
+                    }
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private static function sideload_pixazo_image(int $post_id, string $image_url, string $variant, array $config)
+    {
+        $tmp = download_url($image_url, 90);
+        if (is_wp_error($tmp)) {
+            return $tmp;
+        }
+
+        $post_slug = sanitize_title((string) get_post_field('post_name', $post_id));
+        if ($post_slug === '') {
+            $post_slug = 'post-' . $post_id;
+        }
+
+        $image_info = wp_getimagesize($tmp);
+        $extension = self::image_extension_from_mime(is_array($image_info) ? (string) ($image_info['mime'] ?? '') : '');
+        $filename = sprintf('%s-pixazo-%s-%dx%d.%s', $post_slug, sanitize_key($variant), (int) $config['width'], (int) $config['height'], $extension);
+        $file = [
+            'name' => sanitize_file_name($filename),
+            'tmp_name' => $tmp,
+        ];
+
+        $attachment_id = media_handle_sideload($file, $post_id, sprintf(
+            '%1$s - %2$s',
+            get_the_title($post_id),
+            (string) $config['label']
+        ));
+
+        if (is_wp_error($attachment_id)) {
+            @unlink($tmp);
+            return $attachment_id;
+        }
+
+        $attachment_id = (int) $attachment_id;
+        update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field(sprintf(
+            /* translators: %s is the post title. */
+            __('AI social image for %s', 'dr-purg-social-syndicator'),
+            get_the_title($post_id)
+        )));
+        update_post_meta($attachment_id, '_dpj_social_generated_provider', 'pixazo');
+        update_post_meta($attachment_id, '_dpj_social_generated_variant', sanitize_key($variant));
+        update_post_meta($attachment_id, '_dpj_social_generated_size', (int) $config['width'] . 'x' . (int) $config['height']);
+
+        return $attachment_id;
+    }
+
+    private static function image_extension_from_mime(string $mime): string
+    {
+        return [
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+        ][$mime] ?? 'jpg';
     }
 
     private static function generate_social_images_for_post(int $post_id)
