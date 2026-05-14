@@ -57,6 +57,8 @@ OG / Reddit preview: 1200x630
 
 The local converter is the preferred daily workflow because it uses no external API, no image-generation quota, and no prompt token budget. It makes a full-bleed crop from the featured/source image, then can add a centered poster-style overlay from the `Overlay text` field. The overlay uses large text with outline and shadow instead of a solid background panel, so the image stays visible. Keep that overlay short, usually a curiosity hook of 8 to 12 words.
 
+When the Facebook link is planned for the first comment, enable `Add bottom hint for link-in-comment posts`. This adds a small outlined footer such as `LINK IN FIRST COMMENT` without covering the image with a solid bar.
+
 The Facebook and Pinterest variants are assigned to their platform media fields. The OG / Reddit variant is assigned to the Reddit media field and is used by the theme's Open Graph image filters when the public post page is scraped.
 
 The Reddit media field is mostly a workflow aid. For link posts, Reddit normally pulls the preview image from the article's Open Graph tags. The field gives you a visible reference and a copyable image URL for manual image-post workflows.
