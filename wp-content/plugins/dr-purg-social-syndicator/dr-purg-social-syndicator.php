@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.3.4
+ * Version: 0.3.5
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.3.4';
+    private const VERSION = '0.3.5';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const PIXAZO_SDXL_FREE_ENDPOINT = 'https://gateway.pixazo.ai/getImage/v1/getSDXLImage';
     private const QUEUE_SLUG = 'dr-purg-social-queue';
@@ -1683,9 +1683,14 @@ final class Dr_Purg_Social_Syndicator
 
     private static function draw_bottom_hint($canvas, string $text, int $target_width, int $target_height): void
     {
-        $hint = self::overlay_display_text(self::short_hint_text($text));
-        if ($hint === '') {
+        $raw_hint = self::short_hint_text($text);
+        $draw_pointer = self::hint_has_down_pointer($raw_hint);
+        $hint = self::overlay_display_text(self::strip_hint_pointer_symbols($raw_hint));
+        if ($hint === '' && !$draw_pointer) {
             return;
+        }
+        if ($hint === '') {
+            $hint = self::overlay_display_text(self::default_local_hint_text());
         }
 
         $bold_font = self::font_path(true);
@@ -1694,23 +1699,36 @@ final class Dr_Purg_Social_Syndicator
             $outline = imagecolorallocatealpha($canvas, 5, 12, 14, 4);
             $shadow = imagecolorallocatealpha($canvas, 92, 17, 48, 24);
             $size = max(28, (int) round($target_width * 0.041));
-            $max_width = (int) round($target_width * 0.82);
+            $pointer_space = $draw_pointer ? (int) round($size * 1.45) : 0;
+            $max_width = max(80, (int) round($target_width * 0.82) - $pointer_space);
             while ($size > 22 && self::ttf_text_width($hint, $bold_font, $size) > $max_width) {
                 $size -= 2;
             }
             $baseline_y = $target_height - max(34, (int) round($target_height * 0.045));
-            self::draw_centered_ttf_text($canvas, $hint, $bold_font, $size, $baseline_y, $target_width, $white, $outline, $shadow, max(3, (int) round($size * 0.08)));
+            self::draw_centered_ttf_hint_text($canvas, $hint, $bold_font, $size, $baseline_y, $target_width, $white, $outline, $shadow, max(3, (int) round($size * 0.08)), $draw_pointer);
             return;
         }
 
         $font = 5;
         $scale = max(3, (int) round($target_width / 320));
-        $max_chars = max(10, (int) floor(($target_width * 0.82) / max(1, imagefontwidth($font) * $scale)));
+        $pointer_space = $draw_pointer ? (int) round(imagefontheight($font) * $scale * 1.65) : 0;
+        $max_chars = max(10, (int) floor((($target_width * 0.82) - $pointer_space) / max(1, imagefontwidth($font) * $scale)));
         if (strlen($hint) > $max_chars) {
             $hint = rtrim(substr($hint, 0, max(3, $max_chars - 3))) . '...';
         }
         $y = $target_height - (imagefontheight($font) * $scale) - max(28, (int) round($target_height * 0.035));
-        self::draw_centered_scaled_string($canvas, $hint, $font, $y, $scale, $target_width, [255, 255, 255, 0], [3, 9, 11, 5], [92, 17, 48, 30], max(3, (int) round($scale * 1.2)));
+        self::draw_centered_scaled_hint_string($canvas, $hint, $font, $y, $scale, $target_width, [255, 255, 255, 0], [3, 9, 11, 5], [92, 17, 48, 30], max(3, (int) round($scale * 1.2)), $draw_pointer);
+    }
+
+    private static function hint_has_down_pointer(string $text): bool
+    {
+        return preg_match('/[\x{1F447}\x{261F}\x{2B07}]/u', $text) === 1;
+    }
+
+    private static function strip_hint_pointer_symbols(string $text): string
+    {
+        $text = (string) preg_replace('/[\x{1F447}\x{261F}\x{2B07}\x{FE0F}\x{1F3FB}-\x{1F3FF}]/u', '', $text);
+        return trim((string) preg_replace('/\s+/', ' ', $text));
     }
 
     private static function overlay_display_text(string $headline): string
@@ -1768,7 +1786,28 @@ final class Dr_Purg_Social_Syndicator
     {
         $text_width = self::ttf_text_width($text, $font, $size);
         $x = (int) floor(($target_width - $text_width) / 2);
+        self::draw_ttf_text_at($canvas, $text, $font, $size, $x, $baseline_y, $fill, $outline, $shadow, $outline_radius);
+    }
 
+    private static function draw_centered_ttf_hint_text($canvas, string $text, string $font, int $size, int $baseline_y, int $target_width, $fill, $outline, $shadow, int $outline_radius, bool $draw_pointer): void
+    {
+        $text_width = self::ttf_text_width($text, $font, $size);
+        $pointer_size = $draw_pointer ? max(26, (int) round($size * 0.92)) : 0;
+        $gap = $draw_pointer ? max(10, (int) round($size * 0.28)) : 0;
+        $group_width = $text_width + $gap + $pointer_size;
+        $x = (int) floor(($target_width - $group_width) / 2);
+
+        self::draw_ttf_text_at($canvas, $text, $font, $size, $x, $baseline_y, $fill, $outline, $shadow, $outline_radius);
+
+        if ($draw_pointer) {
+            $center_x = $x + $text_width + $gap + (int) round($pointer_size / 2);
+            $center_y = $baseline_y - (int) round($size * 0.35);
+            self::draw_down_pointer_icon($canvas, $center_x, $center_y, $pointer_size);
+        }
+    }
+
+    private static function draw_ttf_text_at($canvas, string $text, string $font, int $size, int $x, int $baseline_y, $fill, $outline, $shadow, int $outline_radius): void
+    {
         if ($shadow !== false) {
             imagettftext($canvas, $size, 0, $x + max(4, (int) round($size * 0.05)), $baseline_y + max(5, (int) round($size * 0.06)), $shadow, $font, $text);
         }
@@ -1788,6 +1827,43 @@ final class Dr_Purg_Social_Syndicator
         }
 
         imagettftext($canvas, $size, 0, $x, $baseline_y, $fill, $font, $text);
+    }
+
+    private static function draw_down_pointer_icon($canvas, int $center_x, int $center_y, int $size): void
+    {
+        $shadow = imagecolorallocatealpha($canvas, 0, 0, 0, 58);
+        $outline = imagecolorallocate($canvas, 255, 255, 255);
+        $accent = imagecolorallocate($canvas, 142, 42, 79);
+
+        if ($shadow !== false) {
+            self::draw_down_pointer_shape($canvas, $center_x + 4, $center_y + 5, $size, $shadow, max(5, (int) round($size * 0.18)));
+        }
+        if ($outline !== false) {
+            self::draw_down_pointer_shape($canvas, $center_x, $center_y, $size + max(8, (int) round($size * 0.20)), $outline, max(7, (int) round($size * 0.22)));
+        }
+        if ($accent !== false) {
+            self::draw_down_pointer_shape($canvas, $center_x, $center_y, $size, $accent, max(5, (int) round($size * 0.17)));
+        }
+    }
+
+    private static function draw_down_pointer_shape($canvas, int $center_x, int $center_y, int $size, $color, int $thickness): void
+    {
+        $top = $center_y - (int) round($size * 0.44);
+        $neck = $center_y + (int) round($size * 0.02);
+        $tip = $center_y + (int) round($size * 0.45);
+        $half = (int) round($size * 0.34);
+
+        imagesetthickness($canvas, $thickness);
+        imageline($canvas, $center_x, $top, $center_x, $neck, $color);
+        imagesetthickness($canvas, 1);
+        imagefilledpolygon($canvas, [
+            $center_x - $half,
+            $neck,
+            $center_x + $half,
+            $neck,
+            $center_x,
+            $tip,
+        ], 3, $color);
     }
 
     private static function draw_centered_accent($canvas, int $target_width, int $y, int $width, int $height): void
@@ -1911,6 +1987,27 @@ final class Dr_Purg_Social_Syndicator
         $text_width = imagefontwidth($font) * strlen($text) * $scale;
         $x = (int) floor(($target_width - $text_width) / 2);
 
+        self::draw_scaled_string_at($canvas, $text, $font, $x, $y, $scale, $fill, $outline, $shadow, $outline_radius);
+    }
+
+    private static function draw_centered_scaled_hint_string($canvas, string $text, int $font, int $y, int $scale, int $target_width, array $fill, array $outline, array $shadow, int $outline_radius, bool $draw_pointer): void
+    {
+        $text_width = imagefontwidth($font) * strlen($text) * $scale;
+        $pointer_size = $draw_pointer ? max(24, (int) round(imagefontheight($font) * $scale * 0.96)) : 0;
+        $gap = $draw_pointer ? max(10, (int) round($scale * 3.2)) : 0;
+        $group_width = $text_width + $gap + $pointer_size;
+        $x = (int) floor(($target_width - $group_width) / 2);
+
+        self::draw_scaled_string_at($canvas, $text, $font, $x, $y, $scale, $fill, $outline, $shadow, $outline_radius);
+        if ($draw_pointer) {
+            $center_x = $x + $text_width + $gap + (int) round($pointer_size / 2);
+            $center_y = $y + (int) round((imagefontheight($font) * $scale) / 2);
+            self::draw_down_pointer_icon($canvas, $center_x, $center_y, $pointer_size);
+        }
+    }
+
+    private static function draw_scaled_string_at($canvas, string $text, int $font, int $x, int $y, int $scale, array $fill, array $outline, array $shadow, int $outline_radius): void
+    {
         self::draw_scaled_string($canvas, $text, $font, $x + max(4, (int) round($scale * 1.25)), $y + max(5, (int) round($scale * 1.4)), $scale, $shadow);
 
         for ($dx = -$outline_radius; $dx <= $outline_radius; $dx += max(1, (int) floor($outline_radius / 2))) {
