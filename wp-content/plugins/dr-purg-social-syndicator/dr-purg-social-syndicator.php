@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.3.5
+ * Version: 0.4.0
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.3.5';
+    private const VERSION = '0.4.0';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const PIXAZO_SDXL_FREE_ENDPOINT = 'https://gateway.pixazo.ai/getImage/v1/getSDXLImage';
     private const QUEUE_SLUG = 'dr-purg-social-queue';
@@ -93,6 +93,9 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_local_hint_enable',
             '_dpj_social_image_generation_last_error',
             '_dpj_social_image_generation_last_run',
+            '_dpj_social_ai_last_error',
+            '_dpj_social_ai_last_run',
+            '_dpj_social_ai_model',
         ],
         'pinterest' => [
             '_dpj_social_pinterest_title',
@@ -161,6 +164,53 @@ final class Dr_Purg_Social_Syndicator
     {
         $version = trim($version);
         return preg_match('/^v\d+\.\d+$/', $version) ? $version : 'v24.0';
+    }
+
+    private static function env(string $key, string $default = ''): string
+    {
+        $value = getenv($key);
+        if ($value === false && isset($_ENV[$key])) {
+            $value = $_ENV[$key];
+        }
+        if ($value === false && isset($_SERVER[$key])) {
+            $value = $_SERVER[$key];
+        }
+
+        $value = is_scalar($value) ? trim((string) $value) : '';
+        return $value !== '' ? $value : $default;
+    }
+
+    private static function env_bool(string $key, bool $default = false): bool
+    {
+        $value = strtolower(self::env($key, $default ? '1' : '0'));
+        return in_array($value, ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private static function env_int(string $key, int $default, int $min, int $max): int
+    {
+        $value = (int) self::env($key, (string) $default);
+        return max($min, min($max, $value));
+    }
+
+    private static function social_ai_provider(): string
+    {
+        return strtolower(self::env('SOCIAL_AI_PROVIDER', self::env('AI_EXTRACTION_PROVIDER', 'openrouter')));
+    }
+
+    private static function social_ai_api_key(): string
+    {
+        return self::env('SOCIAL_AI_API_KEY', self::env('AI_EXTRACTION_API_KEY', self::env('OPENROUTER_API_KEY')));
+    }
+
+    private static function social_ai_model(): string
+    {
+        return self::env('SOCIAL_AI_MODEL', self::env('AI_EXTRACTION_MODEL', 'inclusionai/ling-2.6-1t:free'));
+    }
+
+    private static function social_ai_enabled(): bool
+    {
+        $enabled = self::env_bool('SOCIAL_AI_ENABLE', self::env_bool('AI_EXTRACTION_ENABLE', false));
+        return $enabled && self::social_ai_provider() === 'openrouter' && self::social_ai_api_key() !== '';
     }
 
     private static function can_manage(): bool
@@ -390,6 +440,9 @@ final class Dr_Purg_Social_Syndicator
         } elseif ($action === 'reset_facebook') {
             self::reset_facebook($post_id);
             $notice = 'facebook_reset';
+        } elseif ($action === 'generate_ai_social_draft') {
+            $result = self::generate_ai_social_draft($post_id);
+            $notice = is_wp_error($result) ? 'ai_draft_failed' : 'ai_draft_generated';
         } elseif ($action === 'generate_social_images') {
             $result = self::generate_social_images_for_post($post_id);
             $notice = is_wp_error($result) ? 'images_failed' : 'images_generated';
@@ -691,6 +744,8 @@ final class Dr_Purg_Social_Syndicator
             'facebook_posted' => __('Facebook post sent and logged.', 'dr-purg-social-syndicator'),
             'facebook_failed' => __('Facebook posting failed. Review the error in the Facebook section.', 'dr-purg-social-syndicator'),
             'facebook_reset' => __('Facebook posting lock reset. You can post this package again.', 'dr-purg-social-syndicator'),
+            'ai_draft_generated' => __('AI social draft generated. Review every field before posting.', 'dr-purg-social-syndicator'),
+            'ai_draft_failed' => __('AI social draft failed. Review the assistant message.', 'dr-purg-social-syndicator'),
             'images_generated' => __('Local social cards generated and assigned.', 'dr-purg-social-syndicator'),
             'images_failed' => __('Social image generation failed. Review the converter message.', 'dr-purg-social-syndicator'),
             'pixazo_generated' => __('Pixazo images generated and assigned.', 'dr-purg-social-syndicator'),
@@ -841,6 +896,21 @@ final class Dr_Purg_Social_Syndicator
                         </td>
                     </tr>
                     <tr>
+                        <th scope="row"><?php esc_html_e('AI social drafts', 'dr-purg-social-syndicator'); ?></th>
+                        <td>
+                            <p>
+                                <?php if (self::social_ai_enabled()) : ?>
+                                    <span class="dpj-status dpj-status--posted"><?php esc_html_e('Enabled', 'dr-purg-social-syndicator'); ?></span>
+                                <?php else : ?>
+                                    <span class="dpj-status dpj-status--skipped"><?php esc_html_e('Disabled', 'dr-purg-social-syndicator'); ?></span>
+                                <?php endif; ?>
+                            </p>
+                            <p class="description">
+                                <?php printf(esc_html__('Uses environment variables only: SOCIAL_AI_ENABLE or AI_EXTRACTION_ENABLE, SOCIAL_AI_API_KEY or AI_EXTRACTION_API_KEY, and model %s. Drafts are reviewed before posting.', 'dr-purg-social-syndicator'), esc_html(self::social_ai_model())); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
                         <th scope="row"><?php esc_html_e('Publishing workflow', 'dr-purg-social-syndicator'); ?></th>
                         <td>
                             <label>
@@ -887,6 +957,7 @@ final class Dr_Purg_Social_Syndicator
                 <input type="hidden" name="post_id" value="<?php echo esc_attr((string) $post_id); ?>">
 
                 <?php self::render_source_section($source); ?>
+                <?php self::render_ai_social_draft_section($post_id); ?>
                 <?php self::render_pixazo_section($post_id); ?>
                 <?php self::render_social_image_converter_section($post_id); ?>
                 <?php self::render_facebook_section($post_id); ?>
@@ -940,6 +1011,40 @@ final class Dr_Purg_Social_Syndicator
             <div class="dpj-source-media">
                 <?php echo $source['image_html'] !== '' ? wp_kses_post($source['image_html']) : '<span class="dpj-media-empty">' . esc_html__('No featured image', 'dr-purg-social-syndicator') . '</span>'; ?>
             </div>
+        </section>
+        <?php
+    }
+
+    private static function render_ai_social_draft_section(int $post_id): void
+    {
+        $enabled = self::social_ai_enabled();
+        $last_error = (string) get_post_meta($post_id, '_dpj_social_ai_last_error', true);
+        $last_run = (string) get_post_meta($post_id, '_dpj_social_ai_last_run', true);
+        $model = (string) get_post_meta($post_id, '_dpj_social_ai_model', true);
+        if ($model === '') {
+            $model = self::social_ai_model();
+        }
+        ?>
+        <section class="dpj-social-card dpj-platform dpj-platform--ai-social">
+            <header class="dpj-platform__header">
+                <h2><?php esc_html_e('AI Social Draft Assistant', 'dr-purg-social-syndicator'); ?></h2>
+                <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="generate_ai_social_draft" <?php disabled(!$enabled); ?>><?php esc_html_e('Generate AI social draft', 'dr-purg-social-syndicator'); ?></button>
+            </header>
+            <?php if (!$enabled) : ?>
+                <div class="notice notice-warning inline"><p><?php esc_html_e('Enable SOCIAL_AI_ENABLE=1 or AI_EXTRACTION_ENABLE=1 and provide an OpenRouter API key in the environment before generating drafts.', 'dr-purg-social-syndicator'); ?></p></div>
+            <?php endif; ?>
+            <?php if ($last_error !== '') : ?>
+                <div class="notice notice-error inline"><p><?php echo esc_html($last_error); ?></p></div>
+            <?php endif; ?>
+            <p class="dpj-social-note">
+                <?php esc_html_e('Creates reviewed drafts for Facebook, Pinterest, Reddit, overlay text, and the optional bottom hint. It never posts automatically and never changes Facebook remote IDs.', 'dr-purg-social-syndicator'); ?>
+            </p>
+            <p class="dpj-social-note">
+                <?php printf(esc_html__('Model: %s', 'dr-purg-social-syndicator'), esc_html($model)); ?>
+                <?php if ($last_run !== '') : ?>
+                    <?php printf(esc_html__(' Last run: %s', 'dr-purg-social-syndicator'), esc_html($last_run)); ?>
+                <?php endif; ?>
+            </p>
         </section>
         <?php
     }
@@ -1239,6 +1344,243 @@ final class Dr_Purg_Social_Syndicator
 
         $source_id = (int) get_post_meta($media_id, '_dpj_social_generated_source_id', true);
         return $source_id > 0 ? $source_id : $media_id;
+    }
+
+    private static function generate_ai_social_draft(int $post_id)
+    {
+        if (!self::social_ai_enabled()) {
+            $error = __('AI social drafts are not enabled. Configure SOCIAL_AI_ENABLE=1 or AI_EXTRACTION_ENABLE=1 and an OpenRouter API key in the environment.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_ai_last_error', $error);
+            return new WP_Error('dpj_social_ai_disabled', $error);
+        }
+
+        $payload = self::request_ai_social_draft($post_id);
+        if (is_wp_error($payload)) {
+            update_post_meta($post_id, '_dpj_social_ai_last_error', $payload->get_error_message());
+            return $payload;
+        }
+
+        self::apply_ai_social_draft($post_id, $payload);
+        update_post_meta($post_id, '_dpj_social_ai_last_run', gmdate('c'));
+        update_post_meta($post_id, '_dpj_social_ai_model', self::social_ai_model());
+        delete_post_meta($post_id, '_dpj_social_ai_last_error');
+
+        return true;
+    }
+
+    private static function request_ai_social_draft(int $post_id)
+    {
+        $model = self::social_ai_model();
+        $prompt = self::ai_social_prompt($post_id);
+        $response = wp_remote_post('https://openrouter.ai/api/v1/chat/completions', [
+            'timeout' => self::env_int('SOCIAL_AI_TIMEOUT_SECONDS', self::env_int('AI_EXTRACTION_TIMEOUT_SECONDS', 16, 4, 45), 4, 45),
+            'headers' => [
+                'Authorization' => 'Bearer ' . self::social_ai_api_key(),
+                'Content-Type' => 'application/json',
+                'HTTP-Referer' => home_url('/'),
+                'X-Title' => 'Dr Purg Jr. Social Syndicator',
+            ],
+            'body' => wp_json_encode([
+                'model' => $model,
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => 'You are a strict social distribution editor for a responsible health publication. Return only valid JSON. Never diagnose, promise cures, invent facts, or write fear-mongering medical claims.',
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => $prompt,
+                    ],
+                ],
+                'temperature' => 0.55,
+                'max_tokens' => self::env_int('SOCIAL_AI_MAX_TOKENS', self::env_int('AI_EXTRACTION_MAX_TOKENS', 1200, 300, 2600), 300, 2600),
+                'response_format' => ['type' => 'json_object'],
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status = (int) wp_remote_retrieve_response_code($response);
+        $body = (string) wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+        if ($status < 200 || $status >= 300) {
+            $message = is_array($decoded) && is_array($decoded['error'] ?? null)
+                ? (string) ($decoded['error']['message'] ?? __('OpenRouter request failed.', 'dr-purg-social-syndicator'))
+                : sprintf(__('OpenRouter returned HTTP error %d.', 'dr-purg-social-syndicator'), $status);
+            return new WP_Error('dpj_social_ai_http_error', $message);
+        }
+
+        $content = is_array($decoded) ? (string) ($decoded['choices'][0]['message']['content'] ?? '') : '';
+        $payload = self::decode_ai_json_object($content);
+        if (!is_array($payload)) {
+            return new WP_Error('dpj_social_ai_bad_json', __('The AI model did not return valid JSON.', 'dr-purg-social-syndicator'));
+        }
+
+        return self::sanitize_ai_social_payload($payload, $post_id);
+    }
+
+    private static function ai_social_prompt(int $post_id): string
+    {
+        $post = get_post($post_id);
+        $title = get_the_title($post_id);
+        $intro = self::source_intro($post_id);
+        $permalink = get_permalink($post_id) ?: '';
+        $categories = implode(', ', wp_get_post_categories($post_id, ['fields' => 'names']));
+        $tags = implode(', ', wp_get_post_tags($post_id, ['fields' => 'names']));
+        $image_alt = '';
+        $featured_id = get_post_thumbnail_id($post_id);
+        if ($featured_id) {
+            $image_alt = trim((string) get_post_meta($featured_id, '_wp_attachment_image_alt', true));
+        }
+
+        $content = $post instanceof WP_Post ? self::ai_source_text((string) $post->post_content) : '';
+        $schema = '{"facebook_hook":"curiosity hook under 95 characters","facebook_summary":"2 short sentences, 180-260 characters, no URL","facebook_first_comment":"CTA with article URL","pinterest_title":"pin title under 90 characters","pinterest_description":"Pinterest description under 420 characters","pinterest_alt_text":"natural image alt under 125 characters","reddit_title":"calmer Reddit title under 120 characters","reddit_body":"Reddit-safe body with article link at the end","overlay_text":"image overlay hook, 5-9 words","bottom_hint_text":"LINK IN FIRST COMMENT 👇"}';
+
+        return trim(
+            "Create a reviewed social distribution draft for Dr Purg Jr., an English-language viral health-facts publication for mobile readers in the United States.\n"
+            . "Return ONLY valid JSON, no markdown, no commentary.\n"
+            . "Required JSON shape: {$schema}\n\n"
+            . "Rules:\n"
+            . "- Facebook hook: clickable but calm, no fake urgency, no diagnosis, no cure promise.\n"
+            . "- Facebook summary: do NOT include the URL. Do not say 'click the link' in the summary.\n"
+            . "- Facebook first comment: include the exact URL and a simple CTA.\n"
+            . "- Pinterest can be slightly search-friendly and descriptive.\n"
+            . "- Reddit must be less clickbait and more transparent. Include the URL at the end of reddit_body.\n"
+            . "- Overlay text should be short enough to read on an image.\n"
+            . "- Bottom hint text may use LINK IN FIRST COMMENT with a down pointer; the app will render the arrow safely.\n"
+            . "- General health information only. No medical advice, diagnosis, treatment, miracle claims, fear-mongering, or invented facts.\n\n"
+            . "Article title: {$title}\n"
+            . "Intro/excerpt: {$intro}\n"
+            . "Categories: {$categories}\n"
+            . "Tags: {$tags}\n"
+            . "Featured image alt: {$image_alt}\n"
+            . "Canonical URL: {$permalink}\n\n"
+            . "Article content:\n{$content}"
+        );
+    }
+
+    private static function ai_source_text(string $value): string
+    {
+        $value = (string) preg_replace('/<(br|\/p|\/li|\/h[1-6]|\/div|\/section)\b[^>]*>/i', "\n", $value);
+        $value = wp_strip_all_tags(strip_shortcodes($value));
+        $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
+        $value = (string) preg_replace("/[ \t]+/", ' ', $value);
+        $value = (string) preg_replace("/\n{3,}/", "\n\n", $value);
+        $value = trim($value);
+        $limit = self::env_int('SOCIAL_AI_MAX_CHARS', self::env_int('AI_EXTRACTION_MAX_CHARS', 6500, 1000, 14000), 1000, 14000);
+
+        return function_exists('mb_substr') ? mb_substr($value, 0, $limit) : substr($value, 0, $limit);
+    }
+
+    private static function decode_ai_json_object(string $content): ?array
+    {
+        $content = trim($content);
+        $content = (string) preg_replace('/^```(?:json)?\s*/i', '', $content);
+        $content = (string) preg_replace('/\s*```$/', '', $content);
+
+        $decoded = json_decode($content, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        if (preg_match('/\{[\s\S]*\}/', $content, $match)) {
+            $decoded = json_decode($match[0], true);
+            return is_array($decoded) ? $decoded : null;
+        }
+
+        return null;
+    }
+
+    private static function sanitize_ai_social_payload(array $payload, int $post_id): array
+    {
+        $permalink = get_permalink($post_id) ?: '';
+        $facebook_hook = self::clean_ai_text((string) ($payload['facebook_hook'] ?? ''), 110);
+        $facebook_summary = self::strip_urls(self::clean_ai_text((string) ($payload['facebook_summary'] ?? ''), 320));
+        $first_comment = self::clean_ai_text((string) ($payload['facebook_first_comment'] ?? ''), 260, true);
+        if ($permalink !== '' && !str_contains($first_comment, $permalink)) {
+            $first_comment = self::default_facebook_first_comment($permalink);
+        }
+
+        $reddit_body = self::clean_ai_text((string) ($payload['reddit_body'] ?? ''), 900, true);
+        if ($permalink !== '' && !str_contains($reddit_body, $permalink)) {
+            $reddit_body = trim($reddit_body . "\n\n" . $permalink);
+        }
+
+        return [
+            'facebook_hook' => $facebook_hook !== '' ? $facebook_hook : get_the_title($post_id),
+            'facebook_summary' => $facebook_summary !== '' ? $facebook_summary : self::source_intro($post_id),
+            'facebook_first_comment' => $first_comment !== '' ? $first_comment : self::default_facebook_first_comment($permalink),
+            'pinterest_title' => self::clean_ai_text((string) ($payload['pinterest_title'] ?? ''), 100),
+            'pinterest_description' => self::clean_ai_text((string) ($payload['pinterest_description'] ?? ''), 460),
+            'pinterest_alt_text' => self::clean_ai_text((string) ($payload['pinterest_alt_text'] ?? ''), 140),
+            'reddit_title' => self::clean_ai_text((string) ($payload['reddit_title'] ?? ''), 130),
+            'reddit_body' => $reddit_body,
+            'overlay_text' => self::short_overlay_text((string) ($payload['overlay_text'] ?? $facebook_hook)),
+            'bottom_hint_text' => self::short_hint_text((string) ($payload['bottom_hint_text'] ?? self::default_local_hint_text())),
+        ];
+    }
+
+    private static function clean_ai_text(string $value, int $max_chars, bool $allow_url = false): string
+    {
+        $value = wp_strip_all_tags($value);
+        $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
+        $value = (string) preg_replace("/[ \t]+/", ' ', $value);
+        $value = (string) preg_replace("/\n{3,}/", "\n\n", $value);
+        $value = trim($value);
+        if (!$allow_url) {
+            $value = self::strip_urls($value);
+        }
+
+        if (function_exists('mb_substr')) {
+            return trim(mb_substr($value, 0, $max_chars));
+        }
+
+        return trim(substr($value, 0, $max_chars));
+    }
+
+    private static function strip_urls(string $value): string
+    {
+        $value = (string) preg_replace('~https?://\S+~i', '', $value);
+        return trim((string) preg_replace('/\s+/', ' ', $value));
+    }
+
+    private static function apply_ai_social_draft(int $post_id, array $payload): void
+    {
+        $permalink = get_permalink($post_id) ?: '';
+        $fields = [
+            '_dpj_social_facebook_hook' => $payload['facebook_hook'],
+            '_dpj_social_facebook_summary' => self::strip_article_url_from_text((string) $payload['facebook_summary'], $permalink),
+            '_dpj_social_facebook_link' => $permalink,
+            '_dpj_social_facebook_first_comment' => $payload['facebook_first_comment'],
+            '_dpj_social_pinterest_title' => $payload['pinterest_title'],
+            '_dpj_social_pinterest_description' => $payload['pinterest_description'],
+            '_dpj_social_pinterest_url' => $permalink,
+            '_dpj_social_pinterest_alt_text' => $payload['pinterest_alt_text'],
+            '_dpj_social_reddit_title' => $payload['reddit_title'],
+            '_dpj_social_reddit_body' => $payload['reddit_body'],
+            '_dpj_social_reddit_link' => $permalink,
+            '_dpj_social_local_overlay_text' => $payload['overlay_text'],
+            '_dpj_social_local_hint_text' => $payload['bottom_hint_text'],
+        ];
+
+        foreach ($fields as $meta_key => $value) {
+            $value = trim((string) $value);
+            if ($value !== '') {
+                update_post_meta($post_id, $meta_key, $value);
+            }
+        }
+
+        if (self::facebook_status($post_id) !== self::STATUS_POSTED) {
+            update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_DRAFT);
+        }
+        if (!in_array(self::platform_status($post_id, 'pinterest'), [self::STATUS_POSTED, self::STATUS_SKIPPED], true)) {
+            update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_DRAFT);
+        }
+        if (!in_array(self::platform_status($post_id, 'reddit'), [self::STATUS_POSTED, self::STATUS_SKIPPED], true)) {
+            update_post_meta($post_id, '_dpj_social_reddit_status', self::STATUS_DRAFT);
+        }
     }
 
     private static function generate_pixazo_images_for_post(int $post_id)

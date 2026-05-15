@@ -122,6 +122,25 @@ function checkPluginContract() {
     /Reset Facebook posting lock/,
   ]);
 
+  requireIncludes('AI social draft contract', plugin, [
+    /AI Social Draft Assistant/,
+    /generate_ai_social_draft/,
+    /request_ai_social_draft/,
+    /apply_ai_social_draft/,
+    /sanitize_ai_social_payload/,
+    /decode_ai_json_object/,
+    /SOCIAL_AI_ENABLE/,
+    /AI_EXTRACTION_ENABLE/,
+    /SOCIAL_AI_API_KEY/,
+    /AI_EXTRACTION_API_KEY/,
+    /openrouter\.ai\/api\/v1\/chat\/completions/,
+    /response_format/,
+    /json_object/,
+    /_dpj_social_ai_last_error/,
+    /_dpj_social_ai_last_run/,
+    /_dpj_social_ai_model/,
+  ]);
+
   requireIncludes('social image converter contract', plugin, [
     /SOCIAL_IMAGE_VARIANTS/,
     /PIXAZO_PLATFORM_VARIANTS/,
@@ -192,6 +211,9 @@ function checkDocs() {
   requireIncludes('docs/social-syndicator.md', docs, [
     /Social Syndicator plugin/,
     /Facebook Page API/,
+    /AI social draft assistant/,
+    /SOCIAL_AI_ENABLE/,
+    /strict JSON/,
     /Long-lived Page Access Token/,
     /Post to Facebook/,
     /Social image converter/,

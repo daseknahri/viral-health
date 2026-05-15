@@ -27,6 +27,17 @@ Graph API version
 Pixazo API key
 ```
 
+AI social drafts use environment variables instead of storing another API key in WordPress:
+
+```text
+SOCIAL_AI_ENABLE=1
+SOCIAL_AI_PROVIDER=openrouter
+SOCIAL_AI_API_KEY=your-openrouter-token
+SOCIAL_AI_MODEL=inclusionai/ling-2.6-1t:free
+```
+
+The existing `AI_EXTRACTION_*` variables are also accepted as fallbacks, so the same OpenRouter setup can power author tools and social drafting.
+
 The Page token must be allowed to publish to the Facebook Page. Use a long-lived Page token with `pages_manage_posts` and `pages_read_engagement`. First-comment posting may also require `pages_manage_engagement`. The plugin sends reviewed posts to the Page only; it does not post to personal profiles.
 
 Facebook posts use this message shape:
@@ -44,6 +55,24 @@ Read the full article here: Article URL
 ```
 
 If a social image is selected, the plugin posts through the Page photos endpoint using the selected image URL and caption. If no image is selected, it falls back to the Page feed endpoint with the reviewed text only. The first comment is posted after the Page post is created when the token has comment permission.
+
+## AI social draft assistant
+
+The Social Editor includes an optional `AI Social Draft Assistant`. It sends controlled source material to OpenRouter: article title, excerpt, categories, tags, featured image alt text, canonical URL, and a capped amount of article body text.
+
+The model must return strict JSON for these reviewed fields:
+
+```text
+Facebook hook
+Facebook summary
+Facebook first comment
+Pinterest title, description, and alt text
+Reddit title and body
+Overlay text
+Bottom hint text
+```
+
+The assistant never posts to Facebook, Pinterest, or Reddit. It only fills draft fields. The plugin strips article URLs from the Facebook summary, keeps the link in the first comment, validates JSON, limits field lengths, and preserves duplicate-posting locks. The bottom-hint checkbox stays manual; AI can draft the hint text, but the editor chooses whether to show it on the generated images.
 
 ## Social image converter
 
@@ -85,5 +114,6 @@ These dimensions keep the correct platform aspect ratios while staying inside th
 - Generated social images are new attachments; the original featured image is not modified.
 - Local social cards are generated from reviewed source imagery and optional overlay text; disable the overlay checkbox when the image already contains important text.
 - Pixazo images are generated only after a user clicks the button, and API errors stay inside the editor.
+- AI social drafts are generated only after a user clicks the button, and every generated field must be reviewed before posting.
 - Reddit remains manual-only to avoid account and subreddit spam risk.
-- Text-generation helpers are still future work; Pixazo is image-generation only.
+- Pixazo is image-generation only.
