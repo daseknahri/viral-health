@@ -60,7 +60,7 @@ Direct link, not an env value yet:
 https://omg10.com/4/9911453
 ```
 
-Use the direct link only as a real optional CTA later, such as a clearly labeled "More recipe ideas" experiment. Do not use it as fake navigation.
+Use the direct link only as a real optional CTA later, such as a clearly labeled related-reading experiment. Do not use it as fake navigation.
 
 ## Placement map
 

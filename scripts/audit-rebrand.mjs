@@ -6,7 +6,7 @@ const args = parseArgs(process.argv.slice(2));
 
 if (args.help || args.h) {
   console.log(`Usage: node scripts/audit-rebrand.mjs
-node scripts/audit-rebrand.mjs --old-brand kuchniatwist --old-domain kuchniatwist.pl --old-email contact@kuchniatwist.pl
+node scripts/audit-rebrand.mjs --old-brand "Old Site" --old-domain old-domain.com --old-email contact@old-domain.com
 
 Checks a cloned blog for old public identity and launch-content leftovers.
 Run it after changing the new site's brand, domain, author, legal pages, posts, and images.
@@ -15,8 +15,8 @@ The script ignores internal function/class prefixes such as kepoli_ by default.
 It flags public-facing old names, emails, domains, AdSense IDs, seed content, and old launch slugs.
 
 Options:
-  --old-brand   Previous public brand to scan for, for example kuchniatwist
-  --old-domain  Previous public domain to scan for, for example kuchniatwist.pl
+  --old-brand   Previous public brand to scan for, for example "Old Site"
+  --old-domain  Previous public domain to scan for, for example old-domain.com
   --old-email   Previous public contact email to scan for`);
   process.exit(0);
 }

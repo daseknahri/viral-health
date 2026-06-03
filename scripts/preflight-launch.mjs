@@ -129,7 +129,7 @@ function parseArgs(argv) {
 function printHelp() {
   console.log(`Usage:
 node scripts/preflight-launch.mjs
-node scripts/preflight-launch.mjs --live https://kuchniatwist.pl
+node scripts/preflight-launch.mjs --live https://health.ibnbatoutaweb.com
 
 Runs the key launch checks in one pass.
 

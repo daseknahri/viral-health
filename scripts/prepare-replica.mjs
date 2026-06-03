@@ -406,11 +406,24 @@ function updateThemeHeader() {
 function updatePublicIdentityFiles() {
   const files = [
     'README.md',
+    'docs/ad-code-inventory.md',
+    'docs/ad-operations-manual.md',
+    'docs/ads-optimization-playbook.md',
     'docs/adsense-readiness.md',
+    'docs/ai-content-growth-strategy.md',
     'docs/author-workflow.md',
+    'docs/content-machine-extraction-map.md',
     'docs/coolify.md',
+    'docs/display-ads-readiness.md',
+    'docs/ezoic-readiness.md',
+    'docs/future-session-handoff.md',
+    'docs/histats-readiness.md',
     'docs/image-generation.md',
+    'docs/monetag-readiness.md',
+    'docs/project-status.md',
     'docs/replicate-food-blog.md',
+    'docs/site-brief-dr-purg-jr.md',
+    'docs/social-syndicator.md',
     'content/pages.json',
     'seed/bin/bootstrap.sh',
     'wp-content/themes/kepoli/functions.php',
@@ -458,6 +471,9 @@ function updatePublicIdentityFiles() {
 
 function updateThemeAssetNames() {
   const assetRenames = [
+    ['dr-purg-jr-wordmark', `${projectSlug}-wordmark`],
+    ['dr-purg-jr-icon', `${projectSlug}-icon`],
+    ['dr-purg-jr-social-cover', `${projectSlug}-social-cover`],
     ['kuchniatwist-wordmark', `${projectSlug}-wordmark`],
     ['kuchniatwist-icon', `${projectSlug}-icon`],
     ['kuchniatwist-social-cover', `${projectSlug}-social-cover`],
@@ -480,6 +496,16 @@ function updateThemeAssetNames() {
 
 function replaceIdentity(value) {
   return value
+    .replace(/Dr Purg Jr Editorial Desk/g, writerName)
+    .replace(/Dr Purg Jr\.?/g, brand)
+    .replace(/contact@health\.ibnbatoutaweb\.com/g, siteEmail)
+    .replace(/editor@health\.ibnbatoutaweb\.com/g, writerEmail)
+    .replace(/health\.ibnbatoutaweb\.com/g, hostname)
+    .replace(/dr-purg-jr-wordmark/g, `${projectSlug}-wordmark`)
+    .replace(/dr-purg-jr-icon/g, `${projectSlug}-icon`)
+    .replace(/dr-purg-jr-social-cover/g, `${projectSlug}-social-cover`)
+    .replace(/about-dr-purg-jr/g, aboutSlug)
+    .replace(/dr-purg-jr/g, projectSlug)
     .replace(/Kepoli/g, brand)
     .replace(/contact@kepoli\.com/g, siteEmail)
     .replace(/isalunemerovik@gmail\.com/g, writerEmail)

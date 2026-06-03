@@ -1,317 +1,260 @@
-# AI Content Growth Strategy
+# Dr Purg Jr. AI Content Growth Strategy
 
-This document captures the next strategic direction for the food-blog engine and the two live sites.
+This document captures the AI, content, traffic, and monetization strategy for Dr Purg Jr. and for future viral-content clones created from this repo.
 
-The goal is to use AI as an editorial and optimization system, not as uncontrolled auto-publishing. The sites should become easier to operate, better at turning outside AI drafts into clean posts, and more intentional about traffic, monetization, and long-term trust.
+The goal is to use AI as an editorial and optimization assistant, not as uncontrolled auto-publishing. The site should become easier to operate, better at turning outside drafts into careful health-facts articles, and more intentional about Facebook traffic, social packaging, image quality, and revenue tests.
 
-## Site Goals
+## Current Site Goal
 
-### Romanian Sister Site
-
-The separate AdSense-clean site is the AdSense-first site.
+Dr Purg Jr. is the English, Facebook/mobile-first health-facts site for readers in the United States.
 
 Primary goals:
-- Keep the site clean, trustworthy, and AdSense-safe.
-- Publish Romanian recipes and helpful kitchen articles with strong originality and clear public value.
-- Build long-term SEO and brand trust.
-- Avoid aggressive ads, misleading claims, thin AI content, and risky health-style articles.
+
+- Build useful, curiosity-led health explainers that mobile Facebook readers want to open.
+- Increase finalized revenue per 1,000 Facebook clicks without wrecking user trust.
+- Use Monetag, Adsterra, Histats, and social packaging in a controlled way.
+- Keep health content careful, general, and non-diagnostic.
+- Treat SEO as useful, but not the first traffic channel.
 
 Best content types:
-- Romanian family recipes.
-- Traditional food with practical modern versions.
-- Budget meals and everyday cooking.
-- Ingredient guides.
-- Storage, meal planning, and kitchen mistake articles.
-- Soft health-adjacent food articles only when they are careful, non-medical, and useful.
 
-### Dr Purg Jr.
+- Body-signal explainers.
+- Food label and habit myth checks.
+- Sleep, energy, stress, hydration, posture, and walking-after-meals context.
+- Gentle warning-sign articles that tell readers when to seek professional care.
+- Practical everyday checks that create curiosity and then give a real payoff.
 
-Dr Purg Jr. is the English, Facebook-first monetization test site.
+Avoid:
 
-Primary goals:
-- Build content that Facebook readers over 40 want to open and continue reading.
-- Increase finalized revenue per 1,000 Facebook clicks.
-- Use monetization more aggressively than the separate AdSense-clean site, but keep it controlled enough to avoid destroying user trust, Facebook reach, or ad-network payment quality.
-- Treat SEO as a secondary benefit, not the first growth channel.
-
-Best content types:
-- Problem-solution cooking articles.
-- Nostalgic recipes and comfort food.
-- Mistake/fix articles.
-- Budget and pantry cooking.
-- Simple recipes with emotional or practical hooks.
-- Short guides that create curiosity and deliver useful payoff.
+- Cure claims.
+- Diagnosis language.
+- Treatment instructions.
+- Fake doctor authority.
+- Fear-only health clickbait.
+- Articles that exist only to force ad impressions.
 
 ## Core Principle
 
 AI can help write faster than a human, but the system should still behave like an editor.
 
 Good AI use:
-- Extract structure from pasted posts.
-- Improve SEO metadata.
-- Suggest tags, categories, internal links, and image alt text.
-- Detect weak titles, thin introductions, bad schema, repeated tags, and missing post sections.
-- Generate multiple Facebook hooks from the same article.
-- Score whether a post is AdSense-safe or Facebook-friendly.
+
+- Build topic tables.
+- Draft article outlines and plain-text drafts.
+- Suggest excerpts, tags, categories, related links, image alt text, and social hooks.
+- Generate reviewed social fields for Facebook, Pinterest, and Reddit.
+- Suggest short overlay text for social images.
+- Score whether a post is health-safe, Facebook-friendly, and monetization-safe.
 
 Bad AI use:
+
 - Auto-publishing unreviewed posts.
-- Generating large volumes of shallow articles.
 - Making unsupported medical claims.
-- Writing fake urgency or misleading clickbait.
-- Creating content only to force ad impressions.
+- Creating fake sources, fake doctors, fake patient stories, or fake urgency.
+- Rewriting health articles without a manual accuracy review.
+- Enabling ads or posting to social platforms without review.
 
-## Open Questions
+## Current AI Layer
 
-### AI Model Choice
+Implemented:
 
-Questions:
-- Should the plugin call OpenRouter directly, or should the outside writing tool remain separate?
-- Are free OpenRouter models reliable enough for production workflow?
-- Should we use one model for extraction and another model for editorial scoring?
+- Deterministic author-tools extraction.
+- Optional OpenRouter repair for incomplete structured extraction.
+- Optional Social AI draft assistant through Social Syndicator.
+- Optional Pixazo image generation from the Social Editor.
+- Local social image conversion from the featured image.
 
-Possible paths:
-- Start with AI disabled by default and add an optional admin-only analysis button.
-- Use deterministic parsing first, AI second, and validation last.
-- Use free OpenRouter models for non-critical suggestions only.
-- Keep paid or stronger models optional for higher-quality editorial review.
+Not implemented by design:
 
-Useful tools:
-- OpenRouter API.
-- ChatGPT or other outside AI writers.
-- WordPress admin plugin UI.
-- JSON schema validation inside the plugin.
-- Existing content verification scripts.
+- Blind auto-publish.
+- Full-content generation inside WordPress.
+- Automatic Facebook posting without Social Editor review.
+- Automatic Pinterest or Reddit API posting.
+- Automatic ad strategy changes.
 
-### Plugin Extraction And SEO Enhancement
+Detailed flow: `docs/content-machine-extraction-map.md`.
 
-Questions:
-- Which fields should AI be allowed to fill automatically?
-- Which fields should always require human review?
-- Should the plugin rewrite content, or only extract and suggest?
+## Recommended Content Planning Table
 
-Possible paths:
-- Add `AI Analyze` in the post editor.
-- Return strict JSON only.
-- Let AI suggest recipe schema, excerpt, meta title, meta description, image metadata, tags, and category.
-- Reject invalid or overly long fields before saving.
-- Keep the current deterministic recipe/article parser as the fallback.
+Use this table before drafting each article:
 
-Useful tools:
-- OpenRouter free models for extraction drafts.
-- Existing WordPress plugin parser.
-- JavaScript admin UI.
-- PHP sanitization and validation.
-- `scripts/verify-content.mjs`.
+```text
+Article title:
+Main hook:
+Short intro angle:
+Category:
+Tags:
+Why people would click:
+Featured image idea:
+Facebook post hook:
+Pinterest pin title:
+Sources to check:
+```
 
-### Content Planning
+Then generate a clean article draft from the approved row.
 
-Questions:
-- How many posts should each site publish per week?
-- Which niches produce the highest Facebook click-through without becoming clickbait?
-- Which content should be evergreen for SEO versus short-term Facebook traffic?
-
-Possible paths:
-- The separate AdSense-clean site publishes fewer, cleaner posts focused on trust and AdSense.
-- Dr Purg Jr. publishes faster and tests headline angles with Facebook traffic.
-- Build a monthly content calendar with recipes, articles, and Facebook caption variants.
-- Keep a small performance log of title, topic, traffic source, clicks, revenue, and reader behavior.
-
-Useful tools:
-- Google Trends.
-- Facebook page insights.
-- Histats.
-- Google Search Console.
-- Manual competitor review.
-- A monthly `content-plan.md` file.
-
-### Facebook Traffic Strategy
-
-Questions:
-- Which hooks work best for an audience over 40?
-- How aggressive can monetization be before reach drops?
-- Should prelanders be used often or only for tests?
-
-Possible paths:
-- Use warm curiosity instead of hard clickbait.
-- Generate three Facebook captions per post: practical, emotional, and curiosity-based.
-- Track every Facebook link with UTM parameters.
-- Use Dr Purg Jr. split posts only when the split improves reading flow.
-- Increase ads only after the user has shown intent, such as scrolling, clicking next, or continuing to another part.
-
-Useful tools:
-- Facebook page analytics.
-- UTM links.
-- Histats traffic-by-URL.
-- Optional GA4 later.
-- Existing ad mode environment variables.
-
-### Monetization Strategy
-
-Questions:
-- Which ad combinations maximize revenue without making the site feel spammy?
-- Should Dr Purg Jr. test more aggressive formats only on engaged users?
-- When should the separate AdSense-clean site add AdSense units after approval?
-
-Possible paths:
-- Keep the separate AdSense-clean site clean until AdSense is approved and stable.
-- Keep Dr Purg Jr. as the ad test site.
-- Test one ad change at a time.
-- Measure finalized revenue per 1,000 Facebook clicks, not just dashboard RPM.
-- Keep aggressive ads behind time, scroll, or click-intent gates.
-
-Useful tools:
-- AdSense for the separate AdSense-clean site.
-- Adsterra and Monetag for Dr Purg Jr..
-- Histats.
-- Coolify environment variables.
-- Ad operations docs.
-
-### Analytics
-
-Questions:
-- Is Histats enough for the first traffic phase?
-- When should GA4 or another analytics layer be added?
-- Which events matter most for revenue decisions?
-
-Possible paths:
-- Use Histats first because it is simple and fast.
-- Add GA4 later if deeper event tracking becomes necessary.
-- Track post URL, traffic source, device, pageviews/session, time on site, and revenue.
-- For Dr Purg Jr., add events for split navigation, related post clicks, scroll depth, and ad-trigger actions.
-
-Useful tools:
-- Histats.
-- GA4.
-- Google Search Console.
-- Facebook insights.
-- Monetag and Adsterra dashboards.
-
-## Practical Roadmap
-
-### Phase 1: Manual AI Workflow
-
-Do this first.
-
-- Use outside AI to generate only title and clean content.
-- Paste manually into WordPress.
-- Use the plugin to extract recipe/article fields.
-- Use Histats and ad dashboards to observe behavior.
-- Build a simple spreadsheet or markdown log of post performance.
-
-### Phase 2: AI-Assisted Plugin Analysis
-
-Do this after the manual workflow is stable.
-
-- Add optional OpenRouter support.
-- Add an admin-only `AI Analyze` button.
-- Generate strict JSON suggestions for metadata, schema, tags, categories, and Facebook hooks.
-- Do not auto-publish.
-- Keep all generated fields editable.
-
-### Phase 3: Content Calendar System
-
-Do this once the sites have enough posts to compare.
-
-- Create a 30-day calendar for each site.
-- The separate AdSense-clean site focuses on AdSense-safe trust and SEO.
-- Dr Purg Jr. focuses on Facebook reader curiosity and monetized continuation.
-- Review performance weekly.
-- Repeat winning topics and remove weak formats.
-
-### Phase 4: Optimization Layer
-
-Do this after real traffic data exists.
-
-- Score posts before publishing.
-- Suggest better titles and split points.
-- Flag thin content, repeated tags, missing alt text, bad schema, and weak excerpts.
-- Compare content types against revenue per 1,000 clicks.
-- Adjust ad strategy based on real finalized revenue.
-
-## Default 30-Day Content Plan
-
-### Romanian Sister Site
-
-Target: 3-4 posts per week.
-
-Suggested mix:
-- 8 Romanian recipes.
-- 4 practical kitchen guides.
-- 2 ingredient or storage articles.
-- 2 budget meal articles.
-
-Publishing rule:
-- Quality over speed.
-- Keep titles natural.
-- Keep public tone Romanian and trustworthy.
-- Avoid aggressive monetization until AdSense is approved and stable.
-
-### Dr Purg Jr.
-
-Target: 1 post per day.
-
-Suggested mix:
-- 15 fast health-fact explainers.
-- 8 problem/fix cooking articles.
-- 4 nostalgia or comfort-food articles.
-- 3 budget/pantry articles.
-
-Publishing rule:
-- Every post should have a clear Facebook angle.
-- Every post should give a real payoff after the hook.
-- Use split posts only when the second part contains meaningful content.
-- Test ad changes slowly and document them.
-
-## Universal Outside-AI Prompt Direction
-
-Use outside AI for drafting, but keep the output simple for the plugin.
+## Outside-AI Draft Contract
 
 Required output:
+
 - Title.
 - Content only.
+- Clear section headings.
+- Short mobile-friendly paragraphs.
 - No HTML.
 - No markdown tables.
 - No fake sources.
 - No exaggerated medical claims.
-- Clear sections.
-- Natural human tone.
-- Useful details and practical payoff.
+- No diagnosis, cure, treatment, or supplement instructions.
+- A calm professional-care reminder when symptoms are severe, sudden, persistent, worsening, or personal.
 
-For recipes:
-- Include servings, prep time, cook/rest time, total time, difficulty, ingredients, method, serving ideas, tips, variations, storage, FAQ, and conclusion.
+The article body should pay off the hook. The headline can create curiosity, but the content must lower panic and add context.
 
-For articles:
-- Include a strong introduction, practical sections, examples, common mistakes, clear takeaways, and conclusion.
+## Social AI Contract
 
-## Success Metrics
+Social AI should fill editable fields only.
 
-separate AdSense-clean site:
-- AdSense approval.
-- Clean policy pages.
-- Stable indexing.
-- Growing search impressions.
-- Low SEO errors.
-- High trust and low policy risk.
+It may suggest:
 
-Dr Purg Jr.:
-- Revenue per 1,000 Facebook clicks.
+- Facebook hook.
+- Facebook summary without the URL.
+- Facebook first comment with CTA and URL.
+- Pinterest title.
+- Pinterest description.
+- Pinterest alt text.
+- Reddit title.
+- Reddit body.
+- Overlay text.
+- Bottom hint text.
+
+It must not:
+
+- Post to Facebook.
+- Add URLs into the Facebook summary.
+- Turn Reddit into spam.
+- Invent claims not present in the article.
+- Enable the bottom hint checkbox automatically.
+- Generate medical advice.
+
+## Image Strategy
+
+Images are critical for clicks.
+
+Preferred workflow:
+
+1. Create or upload a strong featured image.
+2. Use the local social converter to generate platform-sized images.
+3. Add short centered overlay text when it helps curiosity.
+4. Add `LINK IN FIRST COMMENT` only when the Facebook link is actually in the first comment.
+5. Use Pixazo only when a featured image is weak or a platform-specific image test is intentional.
+
+Avoid:
+
+- Tiny text.
+- Thick dark panels that hide the image.
+- Fake medical charts or fake authority cues.
+- Overloaded text.
+- Panic visuals.
+- Images that imply a diagnosis or guaranteed outcome.
+
+## Facebook Traffic Strategy
+
+Use warm curiosity instead of hard clickbait.
+
+Good hook patterns:
+
+- `Most people miss this small body clue`
+- `The everyday habit your body may notice first`
+- `A common label trick that makes snacks look healthier`
+- `Why this harmless-looking routine can change how sleep feels`
+
+Bad hook patterns:
+
+- `Doctors hate this`
+- `This one trick cures...`
+- `You will die if...`
+- Fake urgency, fake tragedy, or fake certainty.
+
+Every Facebook link should use UTM parameters:
+
+```text
+?utm_source=facebook&utm_medium=social&utm_campaign=dr_purg_growth&utm_content=post_slug_or_hook
+```
+
+## Monetization Strategy
+
+Default source state:
+
+- AdSense off.
+- GA off.
+- Monetag off.
+- Display ads off.
+- Histats off until configured.
+
+Live tests can enable providers from Coolify, but the source defaults stay conservative.
+
+Test ladder:
+
+1. Histats tracking.
+2. Clean display/native slots.
+3. Monetag In-Page Push.
+4. Sticky bottom only after mobile layout looks stable.
+5. Vignette or OnClick only as deliberate short tests after enough traffic and payout confidence.
+
+Main KPI:
+
+```text
+Revenue per 1,000 Facebook clicks = finalized paid revenue / Facebook clicks * 1000
+```
+
+Supporting KPIs:
+
 - Facebook reach stability.
 - Mobile engagement.
 - Pages per session.
-- Split-post continuation rate.
-- Finalized revenue versus dashboard revenue.
-- Low complaint rate.
+- Time on page.
+- Split-next click rate.
+- Related-post click rate.
+- Complaint risk.
+- Finalized revenue versus dashboard estimate.
+
+## Practical Roadmap
+
+### Phase 1: Manual Excellence
+
+- Draft outside WordPress.
+- Publish manually.
+- Use Auto fill.
+- Use Social Editor.
+- Use local image converter.
+- Track performance manually.
+
+### Phase 2: Reviewed AI Assist
+
+- Use Social AI for field suggestions.
+- Add stricter validation for hook length, summary style, and claim safety.
+- Add a simple performance log for topic, hook, source, clicks, RPM, and notes.
+
+### Phase 3: Image And Hook Testing
+
+- Test image overlays by format.
+- Compare featured-image-derived cards versus Pixazo cards.
+- Track which hook/image pairs get clicks without increasing complaints.
+
+### Phase 4: Clone-Ready System
+
+- Keep docs and scripts ready for another viral-content site.
+- Replace all brand, ad, social, image, and content assets per clone.
+- Run replica and preflight checks before traffic.
 
 ## Future Build Candidates
 
-- `AI Analyze` plugin button.
-- AI JSON schema validator.
-- Facebook hook generator.
-- Post quality score.
-- AdSense safety score.
-- Viral/Facebook readability score.
-- Monthly content-plan generator.
+- AI hook quality score.
+- Health-claim safety score.
+- Social image crop and overlay checker.
 - Performance log template.
-- UTM link helper.
-- Split-post quality checker.
+- UTM helper.
+- Facebook caption variant generator.
+- Pinterest-safe title generator.
+- Reddit-safe manual post helper.
+- Monthly topic calendar generator.

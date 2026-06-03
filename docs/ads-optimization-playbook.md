@@ -120,13 +120,13 @@ Use this order. Do not jump to the bottom early.
 1. Baseline: Adsterra after-intro + mid-content, optional below-content display, no Monetag page-load formats.
 2. Cleaner mode: if users report bad creatives, pause below-content first, then keep only after-intro + mid-content display.
 3. Pre-lander test: set `KT_PRELANDER_ENABLE=1` and send Facebook links to `/prelander/{post-slug}/`.
-4. Medium mode: set `KT_AD_MODE=medium` and add `MONETAG_ONCLICK_BASE64` only after adding a stable recipe intent hook, such as a tested same-page CTA that does not pretend to be navigation. Keep the default 45-second and 35% scroll guard.
+4. Medium mode: set `KT_AD_MODE=medium` and add `MONETAG_ONCLICK_BASE64` only after adding a stable article intent hook, such as a tested same-page CTA that does not pretend to be navigation. Keep the default 45-second and 35% scroll guard.
 5. In-Page Push test: set `KT_AD_MODE=medium` and use `MONETAG_INPAGE_PUSH_BASE64` only if baseline RPM is too weak and user experience stays acceptable.
 6. Multi-part posts: use the editor's smart split or manual `2 parts` / `3 parts`; the part_continue ad can appear before the simple navigation.
 7. More display: add `reading_option` first, then `sticky_bottom` if mobile still feels clean. Do not re-add `card_grid` unless we run a controlled test.
 8. Vignette test: only try Vignette in `aggressive` after traffic is stable, with a 10-15 minute cooldown, and stop immediately if it traps users or redirects on close.
 9. Aggressive test: use `KT_AD_MODE=aggressive` only on short controlled traffic windows.
-10. Direct/SmartLink test: only use as a real "more recipe ideas" link, never as fake navigation or a fake button.
+10. Direct/SmartLink test: only use as a real related-reading link, never as fake navigation or a fake button.
 
 ## Coolify controls
 
@@ -169,7 +169,7 @@ KT_PRELANDER_ENABLE=1
 Then use this URL shape:
 
 ```text
-https://health.ibnbatoutaweb.com/prelander/post-slug/?utm_source=facebook&utm_medium=social&utm_campaign=kuchnia_monetag_test&utm_content=hook_name
+https://health.ibnbatoutaweb.com/prelander/post-slug/?utm_source=facebook&utm_medium=social&utm_campaign=dr_purg_monetag_test&utm_content=hook_name
 ```
 
 To pause only Vignette:

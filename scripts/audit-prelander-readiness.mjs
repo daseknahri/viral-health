@@ -171,6 +171,6 @@ function checkDocs() {
     /MONETAG_INPAGE_PUSH_BASE64=/,
     /KT_ACTION_AD_MIN_SECONDS=45/,
     /KT_ACTION_AD_MIN_SCROLL=35/,
-    /stable recipe intent hook/i,
+    /stable article intent hook/i,
   ]);
 }

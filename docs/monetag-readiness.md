@@ -76,7 +76,7 @@ MONETAG_PUSH_MINUTES=0
 
 Frequency values are optional client-side guards for individual base64 snippets. `0` means no extra guard. `15` means the format is injected at most once every fifteen minutes per browser. Use provider dashboard frequency caps first when they exist; use these variables as an extra safety belt for formats like Vignette or OnClick. Baseline intentionally keeps Vignette empty, and the theme blocks Vignette in baseline even if the env value is accidentally left populated.
 
-`MONETAG_ONCLICK_BASE64` is action-triggered. It should not render on page load. It is injected only after a real recipe intent click when `KT_AD_MODE=medium` or `KT_AD_MODE=aggressive`, after the visitor has spent at least `KT_ACTION_AD_MIN_SECONDS=45` seconds on the page and scrolled at least `KT_ACTION_AD_MIN_SCROLL=35` percent.
+`MONETAG_ONCLICK_BASE64` is action-triggered. It should not render on page load. It is injected only after a real article intent click when `KT_AD_MODE=medium` or `KT_AD_MODE=aggressive`, after the visitor has spent at least `KT_ACTION_AD_MIN_SECONDS=45` seconds on the page and scrolled at least `KT_ACTION_AD_MIN_SCROLL=35` percent.
 
 ## Monetag dashboard setup
 
@@ -86,7 +86,7 @@ Frequency values are optional client-side guards for individual base64 snippets.
 4. Week 1 formats: keep Monetag page-load formats off and run the separate display/native stack.
 5. Week 1 formats: keep Popunder, Direct Link, SmartLink, and Push Notifications off.
 6. Week 2 formats: if earnings are weak and stats look accepted, test In-Page Push in `medium`, test Vignette Banner only in `aggressive` with a 15-minute cooldown, or test OnClick/Popunder with max 1 per user/session if the dashboard allows frequency control.
-7. After first payout: if Monetag pays correctly but RPM is weak, test SmartLink only as a real internal "more recipe ideas" CTA. Never make it look like a fake button or site navigation.
+7. After first payout: if Monetag pays correctly but RPM is weak, test SmartLink only as a real related-reading CTA. Never make it look like a fake button or site navigation.
 8. For Facebook funnel tests, use `/prelander/{post-slug}/` only when `KT_PRELANDER_ENABLE=1`.
 
 Recommended controlled-aggressive defaults:
@@ -107,7 +107,7 @@ If users report adult, dating, casino, misleading, or redirect-heavy ads, pause 
 Use UTM links for every Facebook post:
 
 ```text
-https://health.ibnbatoutaweb.com/post-slug/?utm_source=facebook&utm_medium=social&utm_campaign=kuchnia_monetag_test&utm_content=post_slug_or_hook
+https://health.ibnbatoutaweb.com/post-slug/?utm_source=facebook&utm_medium=social&utm_campaign=dr_purg_monetag_test&utm_content=post_slug_or_hook
 ```
 
 Ramp slowly:
@@ -160,7 +160,7 @@ Manual checks after deploy:
 
 1. With `MONETAG_ENABLE=0`, view source on the homepage and a post. No Monetag script should appear.
 2. With verification env values set, view source on the homepage. The verification meta tag should appear.
-3. With `MONETAG_ENABLE=1` and individual base64 tags set, view source on one public recipe/article post. The enabled Monetag snippets should appear.
+3. With `MONETAG_ENABLE=1` and individual base64 tags set, view source on one public article post. The enabled Monetag snippets should appear.
 4. With `MONETAG_ENABLE=1` and `MONETAG_INSTALL_CHECK=1`, view source on the homepage. The Monetag script should appear for the checker.
 5. After Monetag passes the installation check, set `MONETAG_INSTALL_CHECK=0`, redeploy, and confirm the homepage script disappears.
 6. With `MONETAG_ENABLE=1`, open `https://health.ibnbatoutaweb.com/sw.js`. It should return JavaScript, not an HTML page.

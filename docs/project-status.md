@@ -1,10 +1,12 @@
 # Project Status
 
-This is the handoff note for future work on Dr Purg Jr.
+This is the short handoff note for Dr Purg Jr. For a future-session continuation guide, read `docs/future-session-handoff.md`.
 
 ## Current Role
 
 This repo is now the English, Facebook/mobile-first health-facts site for `health.ibnbatoutaweb.com`. It is built from the shared engine, but the public identity, pages, categories, article pack, and images are all Dr Purg Jr. specific.
+
+The repo can still be replicated for another viral-content blog. Use `docs/replicate-food-blog.md` for the clone workflow, then replace all Dr Purg Jr. identity, content, images, ad codes, and social credentials.
 
 ## Production Defaults
 
@@ -31,6 +33,8 @@ Keep AdSense IDs blank. Add instant/native ad snippets only as base64 Coolify va
 - In WordPress, choose `Article`, then use `Auto fill`.
 - For long posts, use `Auto split` or `2 parts` / `3 parts`.
 - Smart split is tuned for monetization tests: `420+` words becomes 2 parts and `1100+` words becomes 3 parts when the split improves reading flow.
+- After first publish, finish the post in `Social Queue` / `Social Editor`.
+- Generate platform images locally first; use Pixazo only as a deliberate test.
 
 ## Ad Workflow
 
@@ -57,10 +61,14 @@ For live deploy checks, temporarily set `KEPOLI_DEPLOY_FINGERPRINT=1`, redeploy,
 
 ## Key Docs
 
+- `docs/future-session-handoff.md`: complete continuation guide for future sessions.
+- `docs/content-machine-extraction-map.md`: article, image, social, and ad workflow map.
 - `docs/ai-content-growth-strategy.md`: future AI, content, Facebook, SEO, and monetization direction.
 - `docs/site-brief-dr-purg-jr.md`: launch brief, audience, content guardrails, and ad strategy for this clone.
+- `docs/social-syndicator.md`: Facebook/Pinterest/Reddit social package workflow.
 - `docs/ad-operations-manual.md`: daily ad operations and pause order.
 - `docs/ad-code-inventory.md`: provider snippets and base64 values.
 - `docs/ads-optimization-playbook.md`: testing strategy and stop rules.
 - `docs/author-workflow.md`: posting and auto-fill workflow.
 - `docs/coolify.md`: deployment and seed safety rules.
+- `docs/replicate-food-blog.md`: historical filename, now the clone guide for future blogs from this engine.

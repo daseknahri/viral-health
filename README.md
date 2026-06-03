@@ -1,6 +1,6 @@
 # Dr Purg Jr. WordPress Blog
 
-Dr Purg Jr. is a GitHub-driven WordPress health-facts blog for English-speaking, mobile-first readers in the United States. The repo contains the Docker Compose stack, custom theme, launch content, image plan, featured images, and WP-CLI bootstrap used by Coolify. For current operating status and next-session handoff, use `docs/project-status.md`.
+Dr Purg Jr. is a GitHub-driven WordPress health-facts blog for English-speaking, mobile-first readers in the United States. The repo contains the Docker Compose stack, custom theme, launch content, image plan, featured images, social syndication tools, ad controls, and WP-CLI bootstrap used by Coolify. For current operating status use `docs/project-status.md`; for future-session handoff use `docs/future-session-handoff.md`; for the article-to-social workflow use `docs/content-machine-extraction-map.md`.
 
 ## What This Repo Builds
 
@@ -11,6 +11,7 @@ Dr Purg Jr. is a GitHub-driven WordPress health-facts blog for English-speaking,
 - A compact authoring plugin that keeps the WordPress admin in English and helps fill SEO, image, article, internal-link, and split-post fields.
 - Google Site Kit installation for later Search Console, Analytics, or AdSense connection from WordPress admin.
 - Env-gated monetization defaults: AdSense stays off, and instant/native ad providers stay controlled by environment variables.
+- A documented clone path for future viral-content blogs that reuse the shared engine with a new identity, content pack, media, ad accounts, and social credentials.
 
 ## Content Status
 

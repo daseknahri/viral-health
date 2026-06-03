@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
-const liveUrl = (process.argv[2] || process.env.SITE_URL || 'https://kuchniatwist.pl').replace(/\/+$/, '');
+const liveUrl = (process.argv[2] || process.env.SITE_URL || 'https://health.ibnbatoutaweb.com').replace(/\/+$/, '');
 const siteProfile = readJsonFile('content/site-profile.json', {});
 const categories = readJsonFile('content/categories.json', []);
 const posts = readJsonFile('content/posts.json', []);
