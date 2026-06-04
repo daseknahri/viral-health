@@ -188,6 +188,7 @@ function checkPluginContract() {
     /CROP_KEEP_WARN/,
     /UPSCALE_WARN/,
     /Image QA checks/,
+    /recommended_source_size/,
     /data-dpj-overlay-counter/,
   ]);
 

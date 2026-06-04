@@ -97,6 +97,7 @@ The converter shows quality checks before you generate cards, so overlay text an
 - A live word counter under the `Overlay text` field flags text that is empty, too short for a hook, or longer than the 12-word limit that the cards keep. The ideal range is 8 to 12 words.
 - An `Image QA checks` panel reflects the last saved overlay text and the current source image. It repeats the overlay length verdict and adds a per-variant crop report.
 - The crop report lists the source resolution and, for each platform size, how much of the source the centered crop keeps and whether the source must be upscaled. A crop that keeps less than 60% of one side, or an upscale beyond about 15%, is flagged as a warning so you can pick a better source image or accept the trade-off deliberately.
+- The panel also states the best source size: a portrait or square image at least `1200x1500` px. That is the largest width and height any local card needs, so a source at least that big never has to be upscaled. Wide landscape photos (for example a `1408x768` AI image) fit the `1200x630` OG / Reddit card well but crop heavily and upscale badly into the tall `1080x1350` Facebook and `1000x1500` Pinterest cards, which is exactly what the warnings catch.
 
 The QA panel never blocks generation; it surfaces risk so the editor can fix overlay length or swap a low-resolution or awkwardly-proportioned source before posting. Save the post to refresh the saved-state checks.
 

@@ -1168,10 +1168,17 @@ final class Dr_Purg_Social_Syndicator
     private static function render_social_image_qa(int $post_id): void
     {
         $qa = self::social_image_qa($post_id);
+        [$rec_width, $rec_height] = self::recommended_source_size();
         ?>
         <div class="dpj-social-qa" data-dpj-social-qa>
             <h3><?php esc_html_e('Image QA checks', 'dr-purg-social-syndicator'); ?></h3>
             <p class="dpj-social-note"><?php esc_html_e('These checks reflect the last saved overlay text and the current source image. Save the post to refresh them.', 'dr-purg-social-syndicator'); ?></p>
+            <p class="dpj-social-note"><?php printf(
+                /* translators: 1: recommended width, 2: recommended height. */
+                esc_html__('Best source: a portrait or square image at least %1$dx%2$d px. Wide landscape photos crop poorly into the tall Facebook and Pinterest cards.', 'dr-purg-social-syndicator'),
+                (int) $rec_width,
+                (int) $rec_height
+            ); ?></p>
             <?php foreach ($qa['overlay'] as $notice) : ?>
                 <p class="dpj-qa-line dpj-qa-line--<?php echo esc_attr($notice['level']); ?>"><?php echo esc_html($notice['text']); ?></p>
             <?php endforeach; ?>
@@ -2052,6 +2059,26 @@ final class Dr_Purg_Social_Syndicator
         }
 
         return trim(wp_trim_words($text, 6, ''), " \t\n\r\0\x0B-.,:;|");
+    }
+
+    /**
+     * Smallest source size that avoids upscaling any local card variant.
+     *
+     * A single source cannot perfectly fit every aspect ratio, but a portrait
+     * or square image at least this large will never be enlarged for any card.
+     *
+     * @return array{0: int, 1: int} Recommended [width, height] in pixels.
+     */
+    private static function recommended_source_size(): array
+    {
+        $width = 0;
+        $height = 0;
+        foreach (self::SOCIAL_IMAGE_VARIANTS as $config) {
+            $width = max($width, (int) $config['width']);
+            $height = max($height, (int) $config['height']);
+        }
+
+        return [$width, $height];
     }
 
     private static function overlay_word_count(string $text): int
