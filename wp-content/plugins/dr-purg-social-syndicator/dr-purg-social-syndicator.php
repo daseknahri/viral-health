@@ -25,6 +25,11 @@ final class Dr_Purg_Social_Syndicator
     private const STATUS_POSTED = 'posted';
     private const STATUS_FAILED = 'failed';
     private const STATUS_SKIPPED = 'skipped';
+    private const OVERLAY_WORD_MAX = 12;
+    private const OVERLAY_WORD_IDEAL_MIN = 8;
+    private const OVERLAY_WORD_MIN = 3;
+    private const CROP_KEEP_WARN = 0.6;
+    private const UPSCALE_WARN = 1.15;
     private const SOCIAL_IMAGE_VARIANTS = [
         'facebook' => [
             'label' => 'Facebook photo',
@@ -1117,6 +1122,14 @@ final class Dr_Purg_Social_Syndicator
                 <?php endif; ?>
             </p>
             <?php self::render_textarea('local_overlay_text', __('Overlay text', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_local_overlay_text', true), 2, 'dpj-local-overlay-text'); ?>
+            <p
+                class="dpj-overlay-counter"
+                data-dpj-overlay-counter
+                data-dpj-overlay-input="#dpj-local-overlay-text"
+                data-dpj-overlay-max="<?php echo esc_attr((string) self::OVERLAY_WORD_MAX); ?>"
+                data-dpj-overlay-ideal-min="<?php echo esc_attr((string) self::OVERLAY_WORD_IDEAL_MIN); ?>"
+                data-dpj-overlay-min="<?php echo esc_attr((string) self::OVERLAY_WORD_MIN); ?>"
+            ></p>
             <label class="dpj-check">
                 <input type="checkbox" name="local_overlay_enable" value="1" <?php checked(get_post_meta($post_id, '_dpj_social_local_overlay_enable', true), '1'); ?>>
                 <?php esc_html_e('Add a short readable text overlay to the generated cards.', 'dr-purg-social-syndicator'); ?>
@@ -1128,6 +1141,7 @@ final class Dr_Purg_Social_Syndicator
                     <?php esc_html_e('Add bottom hint for link-in-comment posts.', 'dr-purg-social-syndicator'); ?>
                 </label>
             </div>
+            <?php self::render_social_image_qa($post_id); ?>
             <div class="dpj-generated-grid">
                 <?php foreach (self::SOCIAL_IMAGE_VARIANTS as $variant => $config) : ?>
                     <?php
@@ -1148,6 +1162,60 @@ final class Dr_Purg_Social_Syndicator
                 <?php endforeach; ?>
             </div>
         </section>
+        <?php
+    }
+
+    private static function render_social_image_qa(int $post_id): void
+    {
+        $qa = self::social_image_qa($post_id);
+        ?>
+        <div class="dpj-social-qa" data-dpj-social-qa>
+            <h3><?php esc_html_e('Image QA checks', 'dr-purg-social-syndicator'); ?></h3>
+            <p class="dpj-social-note"><?php esc_html_e('These checks reflect the last saved overlay text and the current source image. Save the post to refresh them.', 'dr-purg-social-syndicator'); ?></p>
+            <?php foreach ($qa['overlay'] as $notice) : ?>
+                <p class="dpj-qa-line dpj-qa-line--<?php echo esc_attr($notice['level']); ?>"><?php echo esc_html($notice['text']); ?></p>
+            <?php endforeach; ?>
+            <?php if ($qa['source_missing']) : ?>
+                <p class="dpj-qa-line dpj-qa-line--warning"><?php esc_html_e('No source image is set yet, so crop safety cannot be checked. Set a featured image first.', 'dr-purg-social-syndicator'); ?></p>
+            <?php elseif (!empty($qa['crop'])) : ?>
+                <p class="dpj-qa-line dpj-qa-line--ok">
+                    <?php printf(
+                        /* translators: 1: source width, 2: source height. */
+                        esc_html__('Source image: %1$dx%2$d px. Each card is a centered crop:', 'dr-purg-social-syndicator'),
+                        (int) $qa['source']['width'],
+                        (int) $qa['source']['height']
+                    ); ?>
+                </p>
+                <ul class="dpj-qa-crop">
+                    <?php foreach ($qa['crop'] as $row) :
+                        $keep_percent = (int) round($row['keep'] * 100);
+                        if ($row['scale'] > self::UPSCALE_WARN) {
+                            $resolution_note = sprintf(
+                                /* translators: %d: upscale percentage. */
+                                __('upscaled %d%% (may look soft)', 'dr-purg-social-syndicator'),
+                                (int) round(($row['scale'] - 1) * 100)
+                            );
+                        } elseif ($row['scale'] > 1.0) {
+                            $resolution_note = __('slight upscale', 'dr-purg-social-syndicator');
+                        } else {
+                            $resolution_note = __('resolution ok', 'dr-purg-social-syndicator');
+                        }
+                        ?>
+                        <li class="dpj-qa-line dpj-qa-line--<?php echo esc_attr($row['level']); ?>">
+                            <?php printf(
+                                /* translators: 1: variant label, 2: target size, 3: kept percentage, 4: cropped axis, 5: resolution note. */
+                                esc_html__('%1$s (%2$s): keeps %3$d%% of %4$s, %5$s', 'dr-purg-social-syndicator'),
+                                esc_html($row['label']),
+                                esc_html($row['target']),
+                                $keep_percent,
+                                esc_html($row['axis']),
+                                esc_html($resolution_note)
+                            ); ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
         <?php
     }
 
@@ -1984,6 +2052,159 @@ final class Dr_Purg_Social_Syndicator
         }
 
         return trim(wp_trim_words($text, 6, ''), " \t\n\r\0\x0B-.,:;|");
+    }
+
+    private static function overlay_word_count(string $text): int
+    {
+        $text = wp_strip_all_tags($text);
+        $text = (string) preg_replace('~https?://\S+~i', '', $text);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
+        $text = trim((string) preg_replace('/\s+/', ' ', $text));
+        if ($text === '') {
+            return 0;
+        }
+
+        return count(preg_split('/\s+/', $text) ?: []);
+    }
+
+    /**
+     * Build pre-generation quality notices for the social image converter.
+     *
+     * Reflects the currently saved overlay text and source image. The notices
+     * warn about overlay text that will be truncated or reads too short, and
+     * about platform crops that discard a large share of the source or that
+     * would upscale a low-resolution image.
+     *
+     * @return array{overlay: array<int, array{level: string, text: string}>, crop: array<int, array<string, mixed>>, source_missing: bool, source: array{width: int, height: int}}
+     */
+    private static function social_image_qa(int $post_id): array
+    {
+        $result = [
+            'overlay' => [],
+            'crop' => [],
+            'source_missing' => false,
+            'source' => ['width' => 0, 'height' => 0],
+        ];
+
+        $overlay_enabled = get_post_meta($post_id, '_dpj_social_local_overlay_enable', true) === '1';
+        if ($overlay_enabled) {
+            $overlay_source = trim((string) get_post_meta($post_id, '_dpj_social_local_overlay_text', true));
+            if ($overlay_source === '') {
+                $overlay_source = self::default_local_overlay_text($post_id);
+            }
+            $words = self::overlay_word_count($overlay_source);
+
+            if ($words === 0) {
+                $result['overlay'][] = [
+                    'level' => 'warning',
+                    'text' => __('The overlay is enabled but the overlay text is empty.', 'dr-purg-social-syndicator'),
+                ];
+            } elseif ($words > self::OVERLAY_WORD_MAX) {
+                $result['overlay'][] = [
+                    'level' => 'warning',
+                    'text' => sprintf(
+                        /* translators: 1: overlay word count, 2: maximum words kept. */
+                        __('Overlay text is %1$d words; only the first %2$d are kept on the cards, so trim it to a tighter hook.', 'dr-purg-social-syndicator'),
+                        $words,
+                        self::OVERLAY_WORD_MAX
+                    ),
+                ];
+            } elseif ($words < self::OVERLAY_WORD_MIN) {
+                $result['overlay'][] = [
+                    'level' => 'warning',
+                    'text' => sprintf(
+                        /* translators: %d: overlay word count. */
+                        __('Overlay text is only %d words; a curiosity hook of 8 to 12 words reads better.', 'dr-purg-social-syndicator'),
+                        $words
+                    ),
+                ];
+            } elseif ($words < self::OVERLAY_WORD_IDEAL_MIN) {
+                $result['overlay'][] = [
+                    'level' => 'notice',
+                    'text' => sprintf(
+                        /* translators: %d: overlay word count. */
+                        __('Overlay text is %d words; 8 to 12 words usually makes a stronger hook.', 'dr-purg-social-syndicator'),
+                        $words
+                    ),
+                ];
+            } else {
+                $result['overlay'][] = [
+                    'level' => 'ok',
+                    'text' => sprintf(
+                        /* translators: %d: overlay word count. */
+                        __('Overlay text length looks good (%d words).', 'dr-purg-social-syndicator'),
+                        $words
+                    ),
+                ];
+            }
+        }
+
+        $source_id = self::social_image_source_id($post_id);
+        if ($source_id <= 0) {
+            $result['source_missing'] = true;
+            return $result;
+        }
+
+        $source_path = (string) get_attached_file($source_id);
+        $info = $source_path !== '' ? wp_getimagesize($source_path) : false;
+        $source_width = is_array($info) ? (int) ($info[0] ?? 0) : 0;
+        $source_height = is_array($info) ? (int) ($info[1] ?? 0) : 0;
+        if ($source_width <= 0 || $source_height <= 0) {
+            return $result;
+        }
+
+        $result['source'] = ['width' => $source_width, 'height' => $source_height];
+
+        foreach (self::SOCIAL_IMAGE_VARIANTS as $config) {
+            $result['crop'][] = self::crop_safety_row(
+                (string) $config['label'],
+                $source_width,
+                $source_height,
+                (int) $config['width'],
+                (int) $config['height']
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * Describe the center-crop and upscale outcome for one target size.
+     *
+     * @return array{label: string, target: string, axis: string, keep: float, scale: float, level: string}
+     */
+    private static function crop_safety_row(string $label, int $source_width, int $source_height, int $target_width, int $target_height): array
+    {
+        $source_ratio = $source_width / $source_height;
+        $target_ratio = $target_width / $target_height;
+
+        if ($source_ratio > $target_ratio) {
+            $crop_width = max(1, (int) round($source_height * $target_ratio));
+            $keep = $crop_width / $source_width;
+            $scale = $target_width / $crop_width;
+            $axis = __('width', 'dr-purg-social-syndicator');
+        } else {
+            $crop_height = max(1, (int) round($source_width / $target_ratio));
+            $keep = $crop_height / $source_height;
+            $scale = $target_height / $crop_height;
+            $axis = __('height', 'dr-purg-social-syndicator');
+        }
+
+        $level = 'ok';
+        if ($keep < self::CROP_KEEP_WARN || $scale > self::UPSCALE_WARN) {
+            $level = 'warning';
+        } elseif ($scale > 1.0) {
+            $level = 'notice';
+        }
+
+        return [
+            'label' => $label,
+            'target' => $target_width . 'x' . $target_height,
+            'axis' => $axis,
+            'keep' => $keep,
+            'scale' => $scale,
+            'level' => $level,
+        ];
     }
 
     private static function copy_cover_image($canvas, $source, int $source_width, int $source_height, int $target_width, int $target_height): void

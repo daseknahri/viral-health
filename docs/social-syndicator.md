@@ -90,6 +90,16 @@ When the Facebook link is planned for the first comment, enable `Add bottom hint
 
 The Facebook and Pinterest variants are assigned to their platform media fields. The OG / Reddit variant is assigned to the Reddit media field and is used by the theme's Open Graph image filters when the public post page is scraped.
 
+## Image QA checks
+
+The converter shows quality checks before you generate cards, so overlay text and crops are reviewed first:
+
+- A live word counter under the `Overlay text` field flags text that is empty, too short for a hook, or longer than the 12-word limit that the cards keep. The ideal range is 8 to 12 words.
+- An `Image QA checks` panel reflects the last saved overlay text and the current source image. It repeats the overlay length verdict and adds a per-variant crop report.
+- The crop report lists the source resolution and, for each platform size, how much of the source the centered crop keeps and whether the source must be upscaled. A crop that keeps less than 60% of one side, or an upscale beyond about 15%, is flagged as a warning so you can pick a better source image or accept the trade-off deliberately.
+
+The QA panel never blocks generation; it surfaces risk so the editor can fix overlay length or swap a low-resolution or awkwardly-proportioned source before posting. Save the post to refresh the saved-state checks.
+
 The Reddit media field is mostly a workflow aid. For link posts, Reddit normally pulls the preview image from the article's Open Graph tags. The field gives you a visible reference and a copyable image URL for manual image-post workflows.
 
 ## Pixazo image testing

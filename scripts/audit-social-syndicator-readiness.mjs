@@ -179,12 +179,28 @@ function checkPluginContract() {
     /Generate local social cards/,
   ]);
 
+  requireIncludes('social image QA contract', plugin, [
+    /social_image_qa/,
+    /crop_safety_row/,
+    /overlay_word_count/,
+    /render_social_image_qa/,
+    /OVERLAY_WORD_MAX/,
+    /CROP_KEEP_WARN/,
+    /UPSCALE_WARN/,
+    /Image QA checks/,
+    /data-dpj-overlay-counter/,
+  ]);
+
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
     /wp\.media/,
     /navigator\.clipboard/,
     /data-dpj-copy/,
+    /data-dpj-overlay-counter/,
+    /updateOverlayCounter/,
     /\.dpj-generated-grid/,
     /\.dpj-social-card/,
+    /\.dpj-social-qa/,
+    /\.dpj-overlay-counter/,
     /\.dpj-status--posted/,
     /\.dpj-status--failed/,
   ]);
