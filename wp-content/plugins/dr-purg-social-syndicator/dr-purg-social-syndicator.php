@@ -3239,6 +3239,22 @@ final class Dr_Purg_Social_Syndicator
         imagefilledrectangle($canvas, 0, 0, $target_width, $target_height, $background);
 
         self::copy_cover_image($canvas, $source, $source_width, $source_height, $target_width, $target_height);
+
+        // Soft, feathered contrast scrim behind the text so the hook stays
+        // legible on bright or busy photos. It is a gentle gradient, not a solid
+        // panel, so the image still shows through. Tunable via SOCIAL_CARD_SCRIM
+        // (0 disables it). The headline is always centered vertically and the
+        // hint sits at the bottom, so the bands track those positions.
+        $scrim = self::card_scrim_strength();
+        if ($scrim > 0.0) {
+            if ($use_overlay && self::overlay_display_text(self::short_overlay_text($overlay_text)) !== '') {
+                self::draw_vertical_scrim($canvas, $target_width, $target_height, (int) round($target_height * 0.5), (int) round($target_height * 0.32), $scrim);
+            }
+            if ($use_hint) {
+                self::draw_vertical_scrim($canvas, $target_width, $target_height, $target_height, (int) round($target_height * 0.16), min(0.6, $scrim + 0.08));
+            }
+        }
+
         if ($use_overlay) {
             self::draw_social_overlay($canvas, $overlay_text, $target_width, $target_height, $variant);
         }
@@ -3475,6 +3491,52 @@ final class Dr_Purg_Social_Syndicator
             'scale' => $scale,
             'level' => $level,
         ];
+    }
+
+    /**
+     * Peak darkness (0.0–0.6) of the text contrast scrim. SOCIAL_CARD_SCRIM is a
+     * percent (0 disables; default 28). The gradient feathers to fully
+     * transparent at the band edges, so this is the strongest point only.
+     */
+    private static function card_scrim_strength(): float
+    {
+        return self::env_int('SOCIAL_CARD_SCRIM', 28, 0, 60) / 100;
+    }
+
+    /**
+     * Draw a vertical black gradient centered on $peak_y that fades to fully
+     * transparent $reach pixels above and below it. Used as a soft readability
+     * scrim behind centered overlay text and the bottom hint — no hard edges,
+     * no solid panel. Requires alpha blending on the canvas (set by the caller).
+     */
+    private static function draw_vertical_scrim($canvas, int $target_width, int $target_height, int $peak_y, int $reach, float $peak_darkness): void
+    {
+        if ($reach <= 0 || $peak_darkness <= 0.0) {
+            return;
+        }
+
+        $peak_darkness = min(0.85, $peak_darkness);
+        $start = max(0, $peak_y - $reach);
+        $end = min($target_height - 1, $peak_y + $reach);
+
+        for ($y = $start; $y <= $end; $y++) {
+            $distance = abs($y - $peak_y) / $reach; // 0 at the peak, 1 at the edges.
+            $darkness = $peak_darkness * pow(1 - $distance, 1.6);
+            if ($darkness <= 0.0) {
+                continue;
+            }
+
+            $alpha = (int) round(127 * (1 - $darkness)); // GD: 0 opaque, 127 transparent.
+            if ($alpha >= 127) {
+                continue;
+            }
+
+            $color = imagecolorallocatealpha($canvas, 0, 0, 0, $alpha);
+            if ($color === false) {
+                continue;
+            }
+            imagefilledrectangle($canvas, 0, $y, $target_width, $y, $color);
+        }
     }
 
     private static function copy_cover_image($canvas, $source, int $source_width, int $source_height, int $target_width, int $target_height): void

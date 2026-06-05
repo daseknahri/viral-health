@@ -154,6 +154,8 @@ function checkPluginContract() {
     /copy_cover_image/,
     /draw_social_overlay/,
     /draw_bottom_hint/,
+    /draw_vertical_scrim/,
+    /card_scrim_strength/,
     /hint_has_down_pointer/,
     /strip_hint_pointer_symbols/,
     /draw_down_pointer_icon/,

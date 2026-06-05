@@ -150,6 +150,8 @@ OG / Reddit preview: 1200x630
 
 The local converter is the preferred daily workflow because it uses no external API, no image-generation quota, and no prompt token budget. It makes a full-bleed crop from the featured/source image, then can add a centered poster-style overlay from the `Overlay text` field. The overlay uses large text with outline and shadow instead of a solid background panel, so the image stays visible. Keep that overlay short, usually a curiosity hook of 8 to 12 words.
 
+To keep the hook readable on bright or busy photos, a soft contrast scrim is drawn behind the overlay text (and behind the bottom hint). It is a feathered dark gradient centered on the text, not a solid bar, so the photo still shows through. Its strength is set by `SOCIAL_CARD_SCRIM` (a percent, 0–60; default 28). Set `SOCIAL_CARD_SCRIM=0` to turn it off entirely, or lower it for a subtler effect. The scrim only appears when the overlay or hint is enabled; plain cards with no text are untouched. Regenerate the cards after changing the value to see the new look.
+
 When the Facebook link is planned for the first comment, enable `Add bottom hint for link-in-comment posts`. This adds a small outlined footer such as `LINK IN FIRST COMMENT` without covering the image with a solid bar. If you type a down-pointer emoji in the hint, the image renderer replaces it with a drawn arrow so the result does not depend on server emoji-font support.
 
 The Facebook and Pinterest variants are assigned to their platform media fields. The OG / Reddit variant is assigned to the Reddit media field and is used by the theme's Open Graph image filters when the public post page is scraped.
