@@ -151,6 +151,19 @@ Instead of typing each post's numbers, use `Import from CSV` at the top of the P
 
 Only the columns present are written, so a GA4 sessions-by-campaign export fills clicks and leaves RPM/revenue alone; add an ad-network export later for revenue. Numbers are cleaned of currency symbols and thousands separators (`$1,234` → `1234`). After importing, the page reports how many posts were updated and how many rows had no matching post (usually traffic to non-article pages). The GA4 → log step is now a file upload instead of manual typing.
 
+### Pull from GA4 (automatic)
+
+To skip the export entirely, enable the GA4 Data API pull. Set these in Coolify env:
+
+```text
+GA4_ENABLE=1
+GA4_PROPERTY_ID=123456789      # numeric property ID (GA4 Admin -> Property Settings)
+GA4_SA_JSON=...                # service-account key: raw JSON, or a path to the key file
+GA4_LOOKBACK_DAYS=28
+```
+
+Create a Google Cloud **service account**, download its JSON key, enable the **Google Analytics Data API** in that project, and add the service account's email as a **Viewer** on the GA4 property. When configured, the Performance page shows `Pull from GA4`: it reads sessions-by-campaign for the chosen number of days and writes them as clicks, matched to posts by slug (= `utm_campaign`). Revenue and RPM are not pulled — keep using the CSV import or manual entry for those. Authentication uses a signed service-account JWT (no OAuth click-through), so it works headless.
+
 ## Content calendar
 
 `Social Queue -> Calendar` plans the pipeline that feeds everything else. It is a lightweight idea backlog plus an AI brainstormer:

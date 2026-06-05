@@ -249,6 +249,12 @@ function checkPluginContract() {
     /handle_performance_import/,
     /dpj_social_perf_action/,
     /Import from CSV/,
+    /handle_ga4_pull/,
+    /ga4_access_token/,
+    /analyticsdata\.googleapis\.com/,
+    /oauth2\.googleapis\.com\/token/,
+    /GA4_PROPERTY_ID/,
+    /sessionCampaignName/,
   ]);
 
   requireIncludes('hook variants contract', plugin, [

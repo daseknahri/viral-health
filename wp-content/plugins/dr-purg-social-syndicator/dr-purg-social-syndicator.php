@@ -458,7 +458,11 @@ final class Dr_Purg_Social_Syndicator
         }
 
         if (isset($_POST['dpj_social_perf_action'])) {
-            self::handle_performance_import();
+            if (sanitize_key(wp_unslash((string) $_POST['dpj_social_perf_action'])) === 'ga4_pull') {
+                self::handle_ga4_pull();
+            } else {
+                self::handle_performance_import();
+            }
             return;
         }
 
@@ -1886,6 +1890,12 @@ final class Dr_Purg_Social_Syndicator
                 printf('<div class="notice notice-error"><p>%s</p></div>', esc_html__('Import failed: no campaign or slug column was found in the CSV header.', 'dr-purg-social-syndicator'));
             } elseif ($perf_notice === 'perf_import_failed') {
                 printf('<div class="notice notice-error"><p>%s</p></div>', esc_html__('Import failed: the uploaded file could not be read as a CSV.', 'dr-purg-social-syndicator'));
+            } elseif ($perf_notice === 'ga4_failed') {
+                $ga4_error = (string) get_option('dpj_social_ga4_error', '');
+                printf(
+                    '<div class="notice notice-error"><p>%s</p></div>',
+                    esc_html($ga4_error !== '' ? sprintf(/* translators: %s is an error message. */ __('GA4 pull failed: %s', 'dr-purg-social-syndicator'), $ga4_error) : __('GA4 pull failed.', 'dr-purg-social-syndicator'))
+                );
             } else {
                 self::render_notice_from_query();
             }
@@ -1900,6 +1910,19 @@ final class Dr_Purg_Social_Syndicator
                     <button class="button button-primary" type="submit" name="dpj_social_perf_action" value="import"><?php esc_html_e('Import CSV', 'dr-purg-social-syndicator'); ?></button>
                 </form>
             </section>
+            <?php if (self::ga4_enabled()) : ?>
+                <section class="dpj-social-card dpj-perf-import">
+                    <h2><?php esc_html_e('Pull clicks from GA4', 'dr-purg-social-syndicator'); ?></h2>
+                    <p class="dpj-social-note"><?php esc_html_e('Pulls sessions by campaign from the GA4 Data API and writes them as clicks, matched to posts by slug (= utm_campaign). Revenue and RPM are not pulled — add those via CSV or by hand.', 'dr-purg-social-syndicator'); ?></p>
+                    <form method="post" action="<?php echo esc_url(add_query_arg(['page' => self::PERF_SLUG], admin_url('admin.php'))); ?>">
+                        <?php wp_nonce_field('dpj_social_ga4_pull', 'dpj_social_ga4_nonce'); ?>
+                        <label><?php esc_html_e('Days back', 'dr-purg-social-syndicator'); ?>
+                            <input type="number" name="ga4_days" value="<?php echo esc_attr((string) self::ga4_lookback_days()); ?>" min="1" max="365">
+                        </label>
+                        <button class="button button-primary" type="submit" name="dpj_social_perf_action" value="ga4_pull"><?php esc_html_e('Pull from GA4', 'dr-purg-social-syndicator'); ?></button>
+                    </form>
+                </section>
+            <?php endif; ?>
             <p class="dpj-perf-summary">
                 <?php printf(
                     /* translators: 1: post count, 2: total clicks, 3: total revenue. */
@@ -4951,6 +4974,245 @@ final class Dr_Purg_Social_Syndicator
         }
 
         update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_DRAFT);
+    }
+
+    private static function ga4_property_id(): string
+    {
+        return (string) preg_replace('/[^0-9]/', '', self::env('GA4_PROPERTY_ID', ''));
+    }
+
+    private static function ga4_lookback_days(): int
+    {
+        return self::env_int('GA4_LOOKBACK_DAYS', 28, 1, 365);
+    }
+
+    /**
+     * Load and decode the GA4 service-account JSON from GA4_SA_JSON. The value may
+     * be the raw JSON or a path to the key file.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function ga4_service_account(): ?array
+    {
+        $raw = self::env('GA4_SA_JSON', '');
+        if ($raw === '') {
+            return null;
+        }
+        if (strlen($raw) < 500 && @is_file($raw) && is_readable($raw)) {
+            $contents = @file_get_contents($raw);
+            if ($contents !== false) {
+                $raw = $contents;
+            }
+        }
+
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private static function ga4_enabled(): bool
+    {
+        return self::env_bool('GA4_ENABLE', false)
+            && self::ga4_property_id() !== ''
+            && self::ga4_service_account() !== null;
+    }
+
+    private static function base64url_encode(string $data): string
+    {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+
+    /**
+     * Exchange a service-account JWT for a short-lived GA4 read access token.
+     *
+     * @param array<string, mixed> $sa
+     * @return string|WP_Error
+     */
+    private static function ga4_access_token(array $sa)
+    {
+        $client_email = (string) ($sa['client_email'] ?? '');
+        $private_key = (string) ($sa['private_key'] ?? '');
+        if ($client_email === '' || $private_key === '') {
+            return new WP_Error('dpj_ga4_bad_sa', __('The GA4 service account JSON is missing client_email or private_key.', 'dr-purg-social-syndicator'));
+        }
+        if (!function_exists('openssl_sign')) {
+            return new WP_Error('dpj_ga4_no_openssl', __('The PHP OpenSSL extension is required for GA4 authentication.', 'dr-purg-social-syndicator'));
+        }
+
+        $now = time();
+        $header = self::base64url_encode((string) wp_json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
+        $claims = self::base64url_encode((string) wp_json_encode([
+            'iss' => $client_email,
+            'scope' => 'https://www.googleapis.com/auth/analytics.readonly',
+            'aud' => 'https://oauth2.googleapis.com/token',
+            'iat' => $now,
+            'exp' => $now + 3600,
+        ]));
+        $signing_input = $header . '.' . $claims;
+        $signature = '';
+        if (!openssl_sign($signing_input, $signature, $private_key, OPENSSL_ALGO_SHA256)) {
+            return new WP_Error('dpj_ga4_sign_failed', __('Could not sign the GA4 auth request. Check the service account private key.', 'dr-purg-social-syndicator'));
+        }
+        $jwt = $signing_input . '.' . self::base64url_encode($signature);
+
+        $response = wp_remote_post('https://oauth2.googleapis.com/token', [
+            'timeout' => 20,
+            'body' => [
+                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                'assertion' => $jwt,
+            ],
+        ]);
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $decoded = json_decode((string) wp_remote_retrieve_body($response), true);
+        $token = is_array($decoded) ? (string) ($decoded['access_token'] ?? '') : '';
+        if ($token === '') {
+            $message = is_array($decoded) ? (string) ($decoded['error_description'] ?? $decoded['error'] ?? '') : '';
+            return new WP_Error('dpj_ga4_token_failed', sprintf(
+                /* translators: %s is an error message. */
+                __('GA4 token request failed: %s', 'dr-purg-social-syndicator'),
+                $message !== '' ? $message : __('unknown error', 'dr-purg-social-syndicator')
+            ));
+        }
+
+        return $token;
+    }
+
+    /**
+     * Run a GA4 sessions-by-campaign report for the last N days.
+     *
+     * @return array<string, int>|WP_Error Map of campaign name => sessions.
+     */
+    private static function ga4_pull_sessions(int $days)
+    {
+        $sa = self::ga4_service_account();
+        if (!is_array($sa)) {
+            return new WP_Error('dpj_ga4_no_sa', __('GA4 service account JSON is not configured or is invalid.', 'dr-purg-social-syndicator'));
+        }
+        $property = self::ga4_property_id();
+        if ($property === '') {
+            return new WP_Error('dpj_ga4_no_property', __('GA4_PROPERTY_ID is not set.', 'dr-purg-social-syndicator'));
+        }
+
+        $token = self::ga4_access_token($sa);
+        if (is_wp_error($token)) {
+            return $token;
+        }
+
+        $response = wp_remote_post('https://analyticsdata.googleapis.com/v1beta/properties/' . rawurlencode($property) . ':runReport', [
+            'timeout' => 30,
+            'headers' => [
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type' => 'application/json',
+            ],
+            'body' => wp_json_encode([
+                'dateRanges' => [['startDate' => $days . 'daysAgo', 'endDate' => 'today']],
+                'dimensions' => [['name' => 'sessionCampaignName']],
+                'metrics' => [['name' => 'sessions']],
+                'limit' => 100000,
+            ]),
+        ]);
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status = (int) wp_remote_retrieve_response_code($response);
+        $decoded = json_decode((string) wp_remote_retrieve_body($response), true);
+        if (!is_array($decoded)) {
+            return new WP_Error('dpj_ga4_bad_response', __('GA4 returned an unreadable response.', 'dr-purg-social-syndicator'));
+        }
+        if ($status < 200 || $status >= 300) {
+            $message = is_array($decoded['error'] ?? null) ? (string) ($decoded['error']['message'] ?? '') : '';
+            return new WP_Error('dpj_ga4_report_error', sprintf(
+                /* translators: %s is an error message. */
+                __('GA4 report failed: %s', 'dr-purg-social-syndicator'),
+                $message !== '' ? $message : 'HTTP ' . $status
+            ));
+        }
+
+        $map = [];
+        foreach (($decoded['rows'] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $campaign = (string) ($row['dimensionValues'][0]['value'] ?? '');
+            $sessions = (int) ($row['metricValues'][0]['value'] ?? 0);
+            if ($campaign === '' || $campaign === '(not set)' || $campaign === '(direct)') {
+                continue;
+            }
+            $map[$campaign] = $sessions;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Pull GA4 sessions by campaign and write them into the performance log as
+     * clicks, matched to posts by slug (the post slug = its utm_campaign).
+     */
+    private static function handle_ga4_pull(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to pull GA4 data.', 'dr-purg-social-syndicator'));
+        }
+
+        check_admin_referer('dpj_social_ga4_pull', 'dpj_social_ga4_nonce');
+
+        $redirect = static function (string $notice, array $args = []) {
+            wp_safe_redirect(add_query_arg(array_merge(['page' => self::PERF_SLUG, 'dpj_social_notice' => $notice], $args), admin_url('admin.php')));
+            exit;
+        };
+
+        if (!self::ga4_enabled()) {
+            update_option('dpj_social_ga4_error', __('GA4 is not configured. Set GA4_ENABLE=1, GA4_PROPERTY_ID, and GA4_SA_JSON.', 'dr-purg-social-syndicator'), false);
+            $redirect('ga4_failed');
+        }
+
+        $days = isset($_POST['ga4_days']) ? absint($_POST['ga4_days']) : self::ga4_lookback_days();
+        $days = max(1, min(365, $days));
+
+        $map = self::ga4_pull_sessions($days);
+        if (is_wp_error($map)) {
+            update_option('dpj_social_ga4_error', $map->get_error_message(), false);
+            $redirect('ga4_failed');
+        }
+        delete_option('dpj_social_ga4_error');
+
+        $slug_to_id = [];
+        foreach (get_posts([
+            'post_type' => 'post',
+            'post_status' => ['publish', 'future', 'draft'],
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ]) as $pid) {
+            $slug = sanitize_title((string) get_post_field('post_name', (int) $pid));
+            if ($slug !== '') {
+                $slug_to_id[$slug] = (int) $pid;
+            }
+        }
+
+        $rows = 0;
+        $updated = 0;
+        $unmatched = 0;
+        foreach ($map as $campaign => $sessions) {
+            $rows++;
+            $slug = sanitize_title((string) $campaign);
+            if ($slug === '' || !isset($slug_to_id[$slug])) {
+                $unmatched++;
+                continue;
+            }
+            $post_id = $slug_to_id[$slug];
+            update_post_meta($post_id, '_dpj_social_perf_clicks', (string) absint($sessions));
+            update_post_meta($post_id, '_dpj_social_perf_updated', gmdate('c'));
+            $updated++;
+        }
+
+        $redirect('perf_imported', [
+            'dpj_perf_updated' => $updated,
+            'dpj_perf_rows' => $rows,
+            'dpj_perf_unmatched' => $unmatched,
+        ]);
     }
 
     public static function filter_theme_social_image_url(string $url): string
