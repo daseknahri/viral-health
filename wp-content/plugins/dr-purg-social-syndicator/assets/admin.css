@@ -382,6 +382,28 @@
   color: #0f5132;
 }
 
+.dpj-calendar-idea {
+  border-left: 4px solid #c3c4c7;
+}
+
+.dpj-calendar-idea--planned {
+  border-left-color: #2271b1;
+}
+
+.dpj-calendar-idea--drafted {
+  border-left-color: #bd8600;
+}
+
+.dpj-calendar-idea--published {
+  border-left-color: #0f5132;
+}
+
+.dpj-calendar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 @media (max-width: 782px) {
   .dpj-social-source,
   .dpj-social-grid,

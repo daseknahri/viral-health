@@ -246,6 +246,21 @@ function checkPluginContract() {
     /Posting Cockpit/,
   ]);
 
+  requireIncludes('content calendar contract', plugin, [
+    /render_calendar_page/,
+    /handle_calendar_post/,
+    /generate_calendar_ideas/,
+    /ai_calendar_schema/,
+    /add_calendar_idea/,
+    /update_calendar_idea/,
+    /delete_calendar_idea/,
+    /CALENDAR_SLUG/,
+    /CALENDAR_OPTION/,
+    /dpj_calendar_action/,
+    /SOCIAL_AI_CALENDAR_IDEAS/,
+    /Content Calendar/,
+  ]);
+
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
     /wp\.media/,
     /navigator\.clipboard/,

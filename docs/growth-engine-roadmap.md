@@ -56,10 +56,10 @@ Everything Claude produces remains **review-first**: it fills draft fields only;
 - ⏳ **Optional later:** official scheduling where allowed (Meta Business Suite for the Page; Pinterest API; the existing newsletter as an owned channel).
 - **Outcome:** posting becomes a few-second paste per destination; preparation is automated, publishing stays human and inside platform rules.
 
-### Phase 5 — Content calendar + AI ideation
+### Phase 5 — Content calendar + AI ideation  ✅
 
-- A monthly viral-health topic calendar (handoff item), with Claude proposing curiosity-led, guardrail-safe angles for review.
-- **Outcome:** a steady, planned pipeline feeding the whole funnel.
+- ✅ `Social Queue -> Calendar`: an idea backlog plus an AI brainstormer. `Generate ideas` (optional theme/seed) asks Claude for `SOCIAL_AI_CALENDAR_IDEAS` curiosity-led, guardrail-safe topics (title + angle + hook seed + rationale), sending recent post titles so it does not repeat covered topics. Ideas can also be added manually. Each idea is scheduled with a date and moved through `Idea → Planned → Drafted → Published`, with notes and delete. Ideas live in a plugin option (`dpj_social_calendar`), separate from posts, since they exist before an article does.
+- **Outcome:** a steady, planned pipeline feeding the whole funnel — ideation is no longer ad-hoc, and topics are reviewed before any writing starts. Reviewed-only: the calendar proposes and tracks; writing and publishing stay human.
 
 ## Monetization ladder (parallel, not a code phase)
 

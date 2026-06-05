@@ -13,14 +13,17 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.4.0';
+    private const VERSION = '0.5.0';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
+    private const CALENDAR_OPTION = 'dpj_social_calendar';
+    private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
     private const PIXAZO_SDXL_FREE_ENDPOINT = 'https://gateway.pixazo.ai/getImage/v1/getSDXLImage';
     private const QUEUE_SLUG = 'dr-purg-social-queue';
     private const EDITOR_SLUG = 'dr-purg-social-editor';
     private const SETTINGS_SLUG = 'dr-purg-social-settings';
     private const PERF_SLUG = 'dr-purg-social-performance';
     private const COCKPIT_SLUG = 'dr-purg-social-cockpit';
+    private const CALENDAR_SLUG = 'dr-purg-social-calendar';
     private const REDIRECT_TRANSIENT_PREFIX = 'dpj_social_redirect_';
     private const STATUS_NEEDS = 'needs_social';
     private const STATUS_DRAFT = 'draft';
@@ -268,6 +271,15 @@ final class Dr_Purg_Social_Syndicator
 
         add_submenu_page(
             self::QUEUE_SLUG,
+            __('Content Calendar', 'dr-purg-social-syndicator'),
+            __('Calendar', 'dr-purg-social-syndicator'),
+            'edit_posts',
+            self::CALENDAR_SLUG,
+            [self::class, 'render_calendar_page']
+        );
+
+        add_submenu_page(
+            self::QUEUE_SLUG,
             __('Social Settings', 'dr-purg-social-syndicator'),
             __('Settings', 'dr-purg-social-syndicator'),
             'manage_options',
@@ -297,7 +309,7 @@ final class Dr_Purg_Social_Syndicator
     public static function enqueue_admin_assets(string $hook): void
     {
         $page = isset($_GET['page']) ? sanitize_key(wp_unslash((string) $_GET['page'])) : '';
-        $is_social_page = in_array($page, [self::QUEUE_SLUG, self::EDITOR_SLUG, self::SETTINGS_SLUG], true);
+        $is_social_page = in_array($page, [self::QUEUE_SLUG, self::EDITOR_SLUG, self::SETTINGS_SLUG, self::COCKPIT_SLUG, self::PERF_SLUG, self::CALENDAR_SLUG], true);
 
         if (!$is_social_page) {
             return;
@@ -421,6 +433,11 @@ final class Dr_Purg_Social_Syndicator
 
         if (isset($_POST['dpj_cockpit_action'])) {
             self::handle_cockpit_post();
+            return;
+        }
+
+        if (isset($_POST['dpj_calendar_action'])) {
+            self::handle_calendar_post();
             return;
         }
 
@@ -554,6 +571,307 @@ final class Dr_Purg_Social_Syndicator
         array_unshift($log, ['target' => $target, 'time' => gmdate('c')]);
         $log = array_slice($log, 0, 50);
         update_post_meta($post_id, '_dpj_social_posting_log', wp_json_encode($log));
+    }
+
+    private static function handle_calendar_post(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to manage the content calendar.', 'dr-purg-social-syndicator'));
+        }
+
+        check_admin_referer('dpj_social_calendar', 'dpj_social_calendar_nonce');
+
+        $action = sanitize_key(wp_unslash((string) $_POST['dpj_calendar_action']));
+        $notice = 'saved';
+
+        if ($action === 'generate_ideas') {
+            $seed = isset($_POST['calendar_seed']) ? sanitize_text_field(wp_unslash((string) $_POST['calendar_seed'])) : '';
+            $result = self::generate_calendar_ideas($seed);
+            $notice = is_wp_error($result) ? 'ideas_failed' : 'ideas_generated';
+        } elseif ($action === 'add_idea') {
+            self::add_calendar_idea([
+                'title' => isset($_POST['idea_title']) ? sanitize_text_field(wp_unslash((string) $_POST['idea_title'])) : '',
+                'angle' => isset($_POST['idea_angle']) ? sanitize_text_field(wp_unslash((string) $_POST['idea_angle'])) : '',
+                'hook' => isset($_POST['idea_hook']) ? sanitize_text_field(wp_unslash((string) $_POST['idea_hook'])) : '',
+                'date' => isset($_POST['idea_date']) ? sanitize_text_field(wp_unslash((string) $_POST['idea_date'])) : '',
+            ]);
+            $notice = 'idea_added';
+        } elseif ($action === 'update_idea') {
+            $id = isset($_POST['idea_id']) ? sanitize_key(wp_unslash((string) $_POST['idea_id'])) : '';
+            self::update_calendar_idea($id, [
+                'date' => isset($_POST['idea_date']) ? sanitize_text_field(wp_unslash((string) $_POST['idea_date'])) : '',
+                'status' => isset($_POST['idea_status']) ? sanitize_text_field(wp_unslash((string) $_POST['idea_status'])) : 'idea',
+                'notes' => isset($_POST['idea_notes']) ? sanitize_textarea_field(wp_unslash((string) $_POST['idea_notes'])) : '',
+            ]);
+            $notice = 'idea_updated';
+        } elseif ($action === 'delete_idea') {
+            $id = isset($_POST['idea_id']) ? sanitize_key(wp_unslash((string) $_POST['idea_id'])) : '';
+            self::delete_calendar_idea($id);
+            $notice = 'idea_deleted';
+        }
+
+        wp_safe_redirect(add_query_arg(['page' => self::CALENDAR_SLUG, 'dpj_social_notice' => $notice], admin_url('admin.php')));
+        exit;
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    private static function calendar_ideas(): array
+    {
+        $stored = get_option(self::CALENDAR_OPTION);
+        return is_array($stored) ? array_values($stored) : [];
+    }
+
+    /**
+     * @param array<int, array<string, string>> $ideas
+     */
+    private static function save_calendar_ideas(array $ideas): void
+    {
+        update_option(self::CALENDAR_OPTION, array_values($ideas), false);
+    }
+
+    /**
+     * @param array<int, array<string, string>> $ideas
+     */
+    private static function next_calendar_id(array $ideas): string
+    {
+        $max = 0;
+        foreach ($ideas as $idea) {
+            $current = (int) ($idea['id'] ?? 0);
+            if ($current > $max) {
+                $max = $current;
+            }
+        }
+
+        return (string) ($max + 1);
+    }
+
+    private static function calendar_idea_count(): int
+    {
+        return self::env_int('SOCIAL_AI_CALENDAR_IDEAS', 8, 3, 20);
+    }
+
+    private static function calendar_statuses(): array
+    {
+        return ['idea', 'planned', 'drafted', 'published'];
+    }
+
+    private static function sanitize_calendar_status(string $value): string
+    {
+        $value = sanitize_key($value);
+        return in_array($value, self::calendar_statuses(), true) ? $value : 'idea';
+    }
+
+    private static function calendar_status_label(string $status): string
+    {
+        $labels = [
+            'idea' => __('Idea', 'dr-purg-social-syndicator'),
+            'planned' => __('Planned', 'dr-purg-social-syndicator'),
+            'drafted' => __('Drafted', 'dr-purg-social-syndicator'),
+            'published' => __('Published', 'dr-purg-social-syndicator'),
+        ];
+
+        return $labels[$status] ?? $status;
+    }
+
+    private static function sanitize_calendar_date(string $value): string
+    {
+        $value = trim($value);
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function add_calendar_idea(array $fields): void
+    {
+        $title = self::clean_ai_text((string) ($fields['title'] ?? ''), 140);
+        if ($title === '') {
+            return;
+        }
+
+        $ideas = self::calendar_ideas();
+        $ideas[] = [
+            'id' => self::next_calendar_id($ideas),
+            'title' => $title,
+            'angle' => self::clean_ai_text((string) ($fields['angle'] ?? ''), 60),
+            'hook' => self::clean_ai_text((string) ($fields['hook'] ?? ''), 140),
+            'date' => self::sanitize_calendar_date((string) ($fields['date'] ?? '')),
+            'status' => 'idea',
+            'notes' => '',
+            'created' => gmdate('c'),
+        ];
+        self::save_calendar_ideas($ideas);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function update_calendar_idea(string $id, array $fields): void
+    {
+        if ($id === '') {
+            return;
+        }
+
+        $ideas = self::calendar_ideas();
+        foreach ($ideas as &$idea) {
+            if ((string) ($idea['id'] ?? '') !== $id) {
+                continue;
+            }
+            if (isset($fields['date'])) {
+                $idea['date'] = self::sanitize_calendar_date((string) $fields['date']);
+            }
+            if (isset($fields['status'])) {
+                $idea['status'] = self::sanitize_calendar_status((string) $fields['status']);
+            }
+            if (isset($fields['notes'])) {
+                $idea['notes'] = self::clean_ai_text((string) $fields['notes'], 300);
+            }
+            break;
+        }
+        unset($idea);
+
+        self::save_calendar_ideas($ideas);
+    }
+
+    private static function delete_calendar_idea(string $id): void
+    {
+        if ($id === '') {
+            return;
+        }
+
+        $ideas = array_filter(self::calendar_ideas(), static function ($idea) use ($id) {
+            return (string) ($idea['id'] ?? '') !== $id;
+        });
+        self::save_calendar_ideas($ideas);
+    }
+
+    /**
+     * Ask the AI for curiosity-led, guardrail-safe topic ideas and append them to
+     * the calendar as `idea` entries for human review. Reviewed-only: ideas are
+     * drafts; nothing is published. Recent post titles are sent so the model
+     * avoids duplicating topics already covered.
+     *
+     * @return true|WP_Error
+     */
+    private static function generate_calendar_ideas(string $seed)
+    {
+        if (!self::social_ai_enabled()) {
+            $error = __('AI is not enabled. Set SOCIAL_AI_ENABLE=1, SOCIAL_AI_PROVIDER=openrouter or anthropic, and the matching API key.', 'dr-purg-social-syndicator');
+            update_option(self::CALENDAR_ERROR_OPTION, $error, false);
+            return new WP_Error('dpj_social_ai_disabled', $error);
+        }
+
+        $count = self::calendar_idea_count();
+        $system = 'You are a content strategist for a responsible US health-facts publication distributed on Facebook groups. Return only valid JSON. Propose curiosity-led but calm topic ideas for general audiences. Never diagnose, promise cures, invent facts, or use fear-mongering medical claims.';
+        $payload = self::social_ai_complete($system, self::ai_calendar_prompt($count, $seed), self::ai_calendar_schema());
+        if (is_wp_error($payload)) {
+            update_option(self::CALENDAR_ERROR_OPTION, $payload->get_error_message(), false);
+            return $payload;
+        }
+
+        $raw = isset($payload['ideas']) && is_array($payload['ideas']) ? $payload['ideas'] : [];
+        $ideas = self::calendar_ideas();
+        $added = 0;
+        foreach ($raw as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $title = self::clean_ai_text((string) ($item['title'] ?? ''), 140);
+            if ($title === '') {
+                continue;
+            }
+            $ideas[] = [
+                'id' => self::next_calendar_id($ideas),
+                'title' => $title,
+                'angle' => self::clean_ai_text((string) ($item['angle'] ?? ''), 60),
+                'hook' => self::clean_ai_text((string) ($item['hook'] ?? ''), 140),
+                'date' => '',
+                'status' => 'idea',
+                'notes' => self::clean_ai_text((string) ($item['rationale'] ?? ''), 300),
+                'created' => gmdate('c'),
+            ];
+            $added++;
+            if ($added >= $count) {
+                break;
+            }
+        }
+
+        if ($added === 0) {
+            $error = __('The AI did not return any usable ideas.', 'dr-purg-social-syndicator');
+            update_option(self::CALENDAR_ERROR_OPTION, $error, false);
+            return new WP_Error('dpj_social_ai_no_ideas', $error);
+        }
+
+        self::save_calendar_ideas($ideas);
+        delete_option(self::CALENDAR_ERROR_OPTION);
+
+        return true;
+    }
+
+    private static function ai_calendar_prompt(int $count, string $seed): string
+    {
+        $recent = get_posts([
+            'post_type' => 'post',
+            'post_status' => ['publish', 'future', 'draft'],
+            'posts_per_page' => 25,
+            'orderby' => 'date',
+            'order' => 'DESC',
+            'fields' => 'ids',
+        ]);
+
+        $titles = [];
+        foreach ($recent as $recent_id) {
+            $title = get_the_title((int) $recent_id);
+            if ($title !== '') {
+                $titles[] = '- ' . $title;
+            }
+        }
+        $recent_block = $titles === [] ? '(none yet)' : implode("\n", $titles);
+        $seed_line = $seed !== '' ? "Theme or seed to lean into: {$seed}\n\n" : '';
+
+        return trim(
+            "Propose {$count} DISTINCT content ideas for Dr Purg Jr., an English-language viral health-facts publication for mobile readers in the United States, distributed mainly through Facebook groups.\n"
+            . "Return ONLY valid JSON, no markdown.\n"
+            . "Shape: {\"ideas\":[{\"title\":\"working article title\",\"angle\":\"short angle label\",\"hook\":\"curiosity hook under 95 characters\",\"rationale\":\"one sentence on why it can earn clicks responsibly\"}]}\n\n"
+            . "Rules:\n"
+            . "- Curiosity-led but calm and responsible: general health information only.\n"
+            . "- No diagnosis, cure, treatment, prevention, or personal medical advice claims; no fear-mongering or invented facts.\n"
+            . "- Each idea must be a genuinely different topic and angle.\n"
+            . "- Prefer everyday, relatable body-signal, habit, and nutrition topics a broad audience clicks.\n"
+            . "- Do NOT repeat topics already covered (listed below).\n\n"
+            . $seed_line
+            . "Recently covered titles (avoid duplicating these):\n{$recent_block}"
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ai_calendar_schema(): array
+    {
+        return [
+            'type' => 'object',
+            'additionalProperties' => false,
+            'properties' => [
+                'ideas' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'additionalProperties' => false,
+                        'properties' => [
+                            'title' => ['type' => 'string'],
+                            'angle' => ['type' => 'string'],
+                            'hook' => ['type' => 'string'],
+                            'rationale' => ['type' => 'string'],
+                        ],
+                        'required' => ['title', 'angle', 'hook', 'rationale'],
+                    ],
+                ],
+            ],
+            'required' => ['ideas'],
+        ];
     }
 
     private static function save_editor_fields(int $post_id): void
@@ -1174,6 +1492,138 @@ final class Dr_Purg_Social_Syndicator
         <?php
     }
 
+    public static function render_calendar_page(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to view the content calendar.', 'dr-purg-social-syndicator'));
+        }
+
+        $enabled = self::social_ai_enabled();
+        $ideas = self::calendar_ideas();
+        $error = (string) get_option(self::CALENDAR_ERROR_OPTION, '');
+        $statuses = self::calendar_statuses();
+
+        // Dated ideas first (ascending), undated after, each group oldest-created first.
+        usort($ideas, static function ($a, $b) {
+            $da = (string) ($a['date'] ?? '');
+            $db = (string) ($b['date'] ?? '');
+            if ($da === '' && $db === '') {
+                return strcmp((string) ($a['created'] ?? ''), (string) ($b['created'] ?? ''));
+            }
+            if ($da === '') {
+                return 1;
+            }
+            if ($db === '') {
+                return -1;
+            }
+            return strcmp($da, $db);
+        });
+
+        $action_url = add_query_arg(['page' => self::CALENDAR_SLUG], admin_url('admin.php'));
+        ?>
+        <div class="wrap dpj-social-wrap dpj-calendar">
+            <h1><?php esc_html_e('Content Calendar', 'dr-purg-social-syndicator'); ?></h1>
+            <?php self::render_notice_from_query(); ?>
+            <p><?php esc_html_e('Plan the pipeline: brainstorm curiosity-led, guardrail-safe topics with the AI, then schedule and track each idea from idea to published. Ideas are drafts for review — nothing here is posted automatically.', 'dr-purg-social-syndicator'); ?></p>
+
+            <section class="dpj-social-card">
+                <header class="dpj-platform__header">
+                    <h2><?php esc_html_e('Brainstorm ideas with AI', 'dr-purg-social-syndicator'); ?></h2>
+                </header>
+                <?php if (!$enabled) : ?>
+                    <p class="dpj-social-note"><?php esc_html_e('Enable the AI provider (SOCIAL_AI_ENABLE=1 with a provider and API key) to generate ideas. You can still add ideas manually below.', 'dr-purg-social-syndicator'); ?></p>
+                <?php endif; ?>
+                <?php if ($error !== '') : ?>
+                    <p class="dpj-social-note dpj-qa-line--warning"><?php echo esc_html($error); ?></p>
+                <?php endif; ?>
+                <form method="post" action="<?php echo esc_url($action_url); ?>">
+                    <?php wp_nonce_field('dpj_social_calendar', 'dpj_social_calendar_nonce'); ?>
+                    <label class="dpj-field" for="dpj-calendar-seed"><?php esc_html_e('Optional theme or seed (e.g. "sleep", "gut health", "winter")', 'dr-purg-social-syndicator'); ?>
+                        <input type="text" id="dpj-calendar-seed" name="calendar_seed" value="">
+                    </label>
+                    <p>
+                        <button class="button button-primary" type="submit" name="dpj_calendar_action" value="generate_ideas" <?php disabled(!$enabled); ?>><?php esc_html_e('Generate ideas', 'dr-purg-social-syndicator'); ?></button>
+                        <span class="dpj-social-note"><?php echo esc_html(sprintf(/* translators: %d is the number of ideas generated per run. */ __('Adds up to %d new ideas per run.', 'dr-purg-social-syndicator'), self::calendar_idea_count())); ?></span>
+                    </p>
+                </form>
+            </section>
+
+            <section class="dpj-social-card">
+                <header class="dpj-platform__header">
+                    <h2><?php esc_html_e('Add an idea manually', 'dr-purg-social-syndicator'); ?></h2>
+                </header>
+                <form method="post" action="<?php echo esc_url($action_url); ?>" class="dpj-calendar-add">
+                    <?php wp_nonce_field('dpj_social_calendar', 'dpj_social_calendar_nonce'); ?>
+                    <label class="dpj-field"><?php esc_html_e('Working title', 'dr-purg-social-syndicator'); ?>
+                        <input type="text" name="idea_title" value="" required>
+                    </label>
+                    <div class="dpj-social-grid">
+                        <label class="dpj-field"><?php esc_html_e('Angle', 'dr-purg-social-syndicator'); ?>
+                            <input type="text" name="idea_angle" value="">
+                        </label>
+                        <label class="dpj-field"><?php esc_html_e('Planned date', 'dr-purg-social-syndicator'); ?>
+                            <input type="date" name="idea_date" value="">
+                        </label>
+                    </div>
+                    <label class="dpj-field"><?php esc_html_e('Hook seed', 'dr-purg-social-syndicator'); ?>
+                        <input type="text" name="idea_hook" value="">
+                    </label>
+                    <p><button class="button button-primary" type="submit" name="dpj_calendar_action" value="add_idea"><?php esc_html_e('Add idea', 'dr-purg-social-syndicator'); ?></button></p>
+                </form>
+            </section>
+
+            <h2><?php esc_html_e('Planned ideas', 'dr-purg-social-syndicator'); ?></h2>
+            <?php if ($ideas === []) : ?>
+                <p><em><?php esc_html_e('No ideas yet. Generate some with the AI or add one manually.', 'dr-purg-social-syndicator'); ?></em></p>
+            <?php endif; ?>
+            <?php foreach ($ideas as $idea) :
+                $id = (string) ($idea['id'] ?? '');
+                $status = self::sanitize_calendar_status((string) ($idea['status'] ?? 'idea'));
+                ?>
+                <section class="dpj-social-card dpj-calendar-idea dpj-calendar-idea--<?php echo esc_attr($status); ?>">
+                    <header class="dpj-cockpit-card__head">
+                        <h3><?php echo esc_html((string) ($idea['title'] ?? '')); ?></h3>
+                        <span class="dpj-status dpj-status--draft"><?php echo esc_html(self::calendar_status_label($status)); ?></span>
+                    </header>
+                    <?php if (!empty($idea['angle']) || !empty($idea['hook'])) : ?>
+                        <ul class="dpj-perf-context">
+                            <?php if (!empty($idea['angle'])) : ?>
+                                <li><strong><?php esc_html_e('Angle:', 'dr-purg-social-syndicator'); ?></strong> <?php echo esc_html((string) $idea['angle']); ?></li>
+                            <?php endif; ?>
+                            <?php if (!empty($idea['hook'])) : ?>
+                                <li><strong><?php esc_html_e('Hook:', 'dr-purg-social-syndicator'); ?></strong> <?php echo esc_html((string) $idea['hook']); ?></li>
+                            <?php endif; ?>
+                        </ul>
+                    <?php endif; ?>
+                    <form method="post" action="<?php echo esc_url($action_url); ?>" class="dpj-calendar-row">
+                        <?php wp_nonce_field('dpj_social_calendar', 'dpj_social_calendar_nonce'); ?>
+                        <input type="hidden" name="idea_id" value="<?php echo esc_attr($id); ?>">
+                        <div class="dpj-perf-grid">
+                            <label><?php esc_html_e('Date', 'dr-purg-social-syndicator'); ?>
+                                <input type="date" name="idea_date" value="<?php echo esc_attr((string) ($idea['date'] ?? '')); ?>">
+                            </label>
+                            <label><?php esc_html_e('Status', 'dr-purg-social-syndicator'); ?>
+                                <select name="idea_status">
+                                    <?php foreach ($statuses as $option) : ?>
+                                        <option value="<?php echo esc_attr($option); ?>" <?php selected($status, $option); ?>><?php echo esc_html(self::calendar_status_label($option)); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                        </div>
+                        <label class="dpj-field"><?php esc_html_e('Notes', 'dr-purg-social-syndicator'); ?>
+                            <textarea name="idea_notes" rows="2"><?php echo esc_textarea((string) ($idea['notes'] ?? '')); ?></textarea>
+                        </label>
+                        <p class="dpj-calendar-actions">
+                            <button class="button button-primary" type="submit" name="dpj_calendar_action" value="update_idea"><?php esc_html_e('Save', 'dr-purg-social-syndicator'); ?></button>
+                            <button class="button button-link-delete" type="submit" name="dpj_calendar_action" value="delete_idea" onclick="return confirm('<?php echo esc_js(__('Delete this idea?', 'dr-purg-social-syndicator')); ?>');"><?php esc_html_e('Delete', 'dr-purg-social-syndicator'); ?></button>
+                        </p>
+                    </form>
+                </section>
+            <?php endforeach; ?>
+        </div>
+        <?php
+    }
+
     public static function render_performance_page(): void
     {
         if (!self::can_manage()) {
@@ -1398,6 +1848,11 @@ final class Dr_Purg_Social_Syndicator
             'hook_variants_failed' => __('Hook variant generation failed. Review the assistant message.', 'dr-purg-social-syndicator'),
             'hook_variant_applied' => __('Hook variant applied to the Facebook hook and overlay.', 'dr-purg-social-syndicator'),
             'posting_logged' => __('Posting logged.', 'dr-purg-social-syndicator'),
+            'ideas_generated' => __('Ideas added to the calendar. Review and schedule the ones worth writing.', 'dr-purg-social-syndicator'),
+            'ideas_failed' => __('Idea generation failed. Review the assistant message above.', 'dr-purg-social-syndicator'),
+            'idea_added' => __('Idea added to the calendar.', 'dr-purg-social-syndicator'),
+            'idea_updated' => __('Idea updated.', 'dr-purg-social-syndicator'),
+            'idea_deleted' => __('Idea removed from the calendar.', 'dr-purg-social-syndicator'),
             'images_generated' => __('Local social cards generated and assigned.', 'dr-purg-social-syndicator'),
             'images_failed' => __('Social image generation failed. Review the converter message.', 'dr-purg-social-syndicator'),
             'pixazo_generated' => __('Pixazo images generated and assigned.', 'dr-purg-social-syndicator'),

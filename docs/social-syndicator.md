@@ -128,6 +128,16 @@ Record results per post in the Social Editor's `Performance` section:
 
 The section also shows the post's current hook, UTM campaign, and Facebook posted date for context. Nothing here is auto-pulled from ad networks yet; it is a manual, reviewed log so hook decisions are driven by real numbers instead of guesses.
 
+## Content calendar
+
+`Social Queue -> Calendar` plans the pipeline that feeds everything else. It is a lightweight idea backlog plus an AI brainstormer:
+
+- **Brainstorm ideas with AI**: type an optional theme or seed (for example `sleep`, `gut health`, `winter`) and click `Generate ideas`. Claude returns `SOCIAL_AI_CALENDAR_IDEAS` curiosity-led, guardrail-safe topic ideas (default 8, range 3–20), each with a working title, an angle label, a hook seed, and a one-line rationale. To avoid repeats, the recent post titles are sent with the request so the model proposes genuinely new topics. Needs the AI provider enabled, same as the draft assistant.
+- **Add an idea manually**: capture a title, angle, planned date, and hook seed without the AI.
+- **Planned ideas**: each idea is a card you can schedule (a planned date), move through a status (`Idea → Planned → Drafted → Published`), annotate with notes, or delete. Cards sort by date (dated first, then undated) so the next thing to write is at the top.
+
+Ideas are stored in a plugin option (`dpj_social_calendar`), separate from posts — they exist before an article does. Everything here is a reviewed draft: the calendar proposes and tracks topics, but writing and publishing stay manual. When an idea becomes an article, publish it as usual and the rest of the Social Syndicator workflow takes over.
+
 ## Social image converter
 
 The converter never edits the original featured image. It creates separate JPG attachments in the Media Library and assigns them back to the social package:
