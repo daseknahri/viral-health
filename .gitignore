@@ -13,6 +13,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Claude Code local harness state.
+.claude/
+
 # Local verification artifacts.
 coverage/
 dist/
