@@ -99,6 +99,12 @@ function checkPluginContract() {
     /_dpj_social_reddit_rules_notes/,
     /mark_pinterest_posted/,
     /mark_reddit_posted/,
+    /publish_pinterest/,
+    /pinterest_request/,
+    /api\.pinterest\.com\/v5\/pins/,
+    /pinterest_access_token/,
+    /pinterest_board_id/,
+    /_dpj_social_pinterest_remote_id/,
   ]);
 
   requireIncludes('Facebook API contract', plugin, [

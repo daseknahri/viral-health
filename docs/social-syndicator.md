@@ -64,6 +64,12 @@ The Facebook section can also schedule the post instead of publishing it now. Pi
 
 Scheduling applies to your **Facebook Page only** — this is the official Graph API. Group posting stays manual, as before. One Facebook limitation matters: you cannot comment on a post that has not been published yet, so the **link first comment is not added to a scheduled post automatically**. After the post goes live, open it in the Social Editor and click `Post first comment` to add the tracked link (this button also works as a retry if the comment failed during an immediate post). The duplicate-posting lock applies to scheduled posts too; use `Reset Facebook posting lock` if you need to reschedule.
 
+## Pinterest API publishing
+
+Pinterest can publish through the official API (v5) instead of copy-and-paste. Add a **Pinterest access token** and a default **board ID** in `Social Queue -> Settings`. When both are present, the Pinterest section shows `Publish to Pinterest`, which creates a Pin on that board from the reviewed title, description, alt text, selected Pinterest image, and the destination URL (tracked with UTM when `SOCIAL_UTM_ENABLE=1`). A duplicate lock prevents double-publishing; use `Reset Pinterest lock` to publish again.
+
+The access token needs the `boards:read`, `pins:read`, and `pins:write` scopes (Pinterest requires app approval for production API access). If no token or board ID is set, Pinterest stays manual exactly as before — nothing changes. As with every channel here, publishing is a deliberate click on reviewed content; nothing is posted automatically.
+
 ## AI social draft assistant
 
 The Social Editor includes an optional `AI Social Draft Assistant`. It sends controlled source material to OpenRouter: article title, excerpt, categories, tags, featured image alt text, canonical URL, and a capped amount of article body text.

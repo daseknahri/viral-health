@@ -119,6 +119,9 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_pinterest_url',
             '_dpj_social_pinterest_alt_text',
             '_dpj_social_pinterest_status',
+            '_dpj_social_pinterest_remote_id',
+            '_dpj_social_pinterest_last_error',
+            '_dpj_social_pinterest_posted_at',
             '_dpj_social_generated_pinterest_media_id',
         ],
         'reddit' => [
@@ -165,6 +168,8 @@ final class Dr_Purg_Social_Syndicator
             'facebook_graph_version' => 'v24.0',
             'pixazo_api_key' => '',
             'pixazo_model' => 'sdxl_v1_free',
+            'pinterest_access_token' => '',
+            'pinterest_board_id' => '',
             'redirect_after_publish' => '1',
         ];
     }
@@ -478,6 +483,8 @@ final class Dr_Purg_Social_Syndicator
             'facebook_graph_version' => isset($_POST['facebook_graph_version']) ? self::clean_graph_version(sanitize_text_field(wp_unslash((string) $_POST['facebook_graph_version']))) : 'v24.0',
             'pixazo_api_key' => isset($_POST['pixazo_api_key']) ? sanitize_text_field(wp_unslash((string) $_POST['pixazo_api_key'])) : '',
             'pixazo_model' => 'sdxl_v1_free',
+            'pinterest_access_token' => isset($_POST['pinterest_access_token']) ? sanitize_textarea_field(wp_unslash((string) $_POST['pinterest_access_token'])) : '',
+            'pinterest_board_id' => isset($_POST['pinterest_board_id']) ? sanitize_text_field(wp_unslash((string) $_POST['pinterest_board_id'])) : '',
             'redirect_after_publish' => isset($_POST['redirect_after_publish']) ? '1' : '0',
         ];
 
@@ -537,6 +544,12 @@ final class Dr_Purg_Social_Syndicator
         } elseif ($action === 'generate_pixazo_images') {
             $result = self::generate_pixazo_images_for_post($post_id);
             $notice = is_wp_error($result) ? 'pixazo_failed' : 'pixazo_generated';
+        } elseif ($action === 'publish_pinterest') {
+            $result = self::publish_pinterest($post_id);
+            $notice = is_wp_error($result) ? 'pinterest_failed' : 'pinterest_published';
+        } elseif ($action === 'reset_pinterest') {
+            self::reset_pinterest($post_id);
+            $notice = 'pinterest_reset';
         } elseif ($action === 'mark_pinterest_posted') {
             update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_POSTED);
             $notice = 'pinterest_posted';
@@ -2083,6 +2096,9 @@ final class Dr_Purg_Social_Syndicator
             'pixazo_generated' => __('Pixazo images generated and assigned.', 'dr-purg-social-syndicator'),
             'pixazo_failed' => __('Pixazo image generation failed. Review the AI image generator message.', 'dr-purg-social-syndicator'),
             'pinterest_posted' => __('Pinterest item marked posted.', 'dr-purg-social-syndicator'),
+            'pinterest_published' => __('Pin published to Pinterest.', 'dr-purg-social-syndicator'),
+            'pinterest_failed' => __('Pinterest publishing failed. Review the error in the Pinterest section.', 'dr-purg-social-syndicator'),
+            'pinterest_reset' => __('Pinterest lock reset. You can publish this pin again.', 'dr-purg-social-syndicator'),
             'reddit_posted' => __('Reddit item marked posted.', 'dr-purg-social-syndicator'),
             'skipped' => __('Social work skipped for this post.', 'dr-purg-social-syndicator'),
             'unskipped' => __('Social work restored for this post.', 'dr-purg-social-syndicator'),
@@ -2225,6 +2241,20 @@ final class Dr_Purg_Social_Syndicator
                         <td>
                             <input class="regular-text" type="password" id="pixazo_api_key" name="pixazo_api_key" value="<?php echo esc_attr($settings['pixazo_api_key']); ?>" autocomplete="new-password">
                             <p class="description"><?php esc_html_e('Used only when you click Generate Pixazo images. The first test provider is Pixazo SDXL v1.0 Free.', 'dr-purg-social-syndicator'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="pinterest_board_id"><?php esc_html_e('Pinterest board ID', 'dr-purg-social-syndicator'); ?></label></th>
+                        <td>
+                            <input class="regular-text" id="pinterest_board_id" name="pinterest_board_id" value="<?php echo esc_attr($settings['pinterest_board_id']); ?>" autocomplete="off">
+                            <p class="description"><?php esc_html_e('Default board pins are published to. Optional — leave Pinterest blank to keep it copy-and-paste manual.', 'dr-purg-social-syndicator'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="pinterest_access_token"><?php esc_html_e('Pinterest access token', 'dr-purg-social-syndicator'); ?></label></th>
+                        <td>
+                            <textarea class="large-text code" rows="3" id="pinterest_access_token" name="pinterest_access_token" autocomplete="off"><?php echo esc_textarea($settings['pinterest_access_token']); ?></textarea>
+                            <p class="description"><?php esc_html_e('Pinterest API v5 access token with the boards:read, pins:read, and pins:write scopes. Used only when you click Publish to Pinterest.', 'dr-purg-social-syndicator'); ?></p>
                         </td>
                     </tr>
                     <tr>
@@ -2646,12 +2676,21 @@ final class Dr_Purg_Social_Syndicator
     private static function render_pinterest_section(int $post_id): void
     {
         $status = self::platform_status($post_id, 'pinterest');
+        $api_enabled = self::pinterest_enabled();
+        $remote_id = (string) get_post_meta($post_id, '_dpj_social_pinterest_remote_id', true);
+        $last_error = (string) get_post_meta($post_id, '_dpj_social_pinterest_last_error', true);
         ?>
         <section class="dpj-social-card dpj-platform dpj-platform--pinterest">
             <header class="dpj-platform__header">
                 <h2><?php esc_html_e('Pinterest', 'dr-purg-social-syndicator'); ?></h2>
                 <span class="dpj-status dpj-status--<?php echo esc_attr($status); ?>"><?php echo esc_html(self::status_label($status)); ?></span>
             </header>
+            <?php if ($remote_id !== '') : ?>
+                <p class="dpj-social-note"><?php printf(esc_html__('Pin ID: %s', 'dr-purg-social-syndicator'), esc_html($remote_id)); ?></p>
+            <?php endif; ?>
+            <?php if ($last_error !== '') : ?>
+                <div class="notice notice-error inline"><p><?php echo esc_html($last_error); ?></p></div>
+            <?php endif; ?>
             <div class="dpj-social-grid">
                 <?php self::render_input('pinterest_title', __('Pin title', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pinterest_title', true)); ?>
                 <?php self::render_input('pinterest_board', __('Board', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pinterest_board', true)); ?>
@@ -2663,9 +2702,16 @@ final class Dr_Purg_Social_Syndicator
                 <?php self::render_input('pinterest_alt_text', __('Alt text', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_pinterest_alt_text', true)); ?>
             </div>
             <p class="dpj-platform__actions">
+                <?php if ($api_enabled) : ?>
+                    <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="publish_pinterest"><?php esc_html_e('Publish to Pinterest', 'dr-purg-social-syndicator'); ?></button>
+                    <button class="button" type="submit" name="dpj_social_editor_action" value="reset_pinterest"><?php esc_html_e('Reset Pinterest lock', 'dr-purg-social-syndicator'); ?></button>
+                <?php endif; ?>
                 <button class="button" type="button" data-dpj-copy="#dpj-pinterest-description"><?php esc_html_e('Copy description', 'dr-purg-social-syndicator'); ?></button>
                 <button class="button" type="submit" name="dpj_social_editor_action" value="mark_pinterest_posted"><?php esc_html_e('Mark Pinterest posted', 'dr-purg-social-syndicator'); ?></button>
             </p>
+            <?php if (!$api_enabled) : ?>
+                <p class="dpj-social-note"><?php esc_html_e('Add a Pinterest access token and board ID in Social Settings to publish pins through the API. Until then, Pinterest stays copy-and-paste manual.', 'dr-purg-social-syndicator'); ?></p>
+            <?php endif; ?>
         </section>
         <?php
     }
@@ -4774,6 +4820,137 @@ final class Dr_Purg_Social_Syndicator
         }
 
         update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_DRAFT);
+    }
+
+    private static function pinterest_enabled(): bool
+    {
+        $settings = self::settings();
+        return trim((string) $settings['pinterest_access_token']) !== '' && trim((string) $settings['pinterest_board_id']) !== '';
+    }
+
+    /**
+     * Publish a Pin to a Pinterest board through the official API (v5). Needs a
+     * Pinterest access token and a default board ID in Social Settings, plus a
+     * selected Pinterest image. Reviewed-only: it publishes the fields the
+     * operator has approved, never automatically.
+     *
+     * @return array<string, mixed>|WP_Error
+     */
+    private static function publish_pinterest(int $post_id)
+    {
+        $remote_id = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_remote_id', true));
+        if ($remote_id !== '') {
+            $error = __('This article already has a Pinterest pin. Reset the Pinterest lock before publishing again.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_pinterest_last_error', $error);
+            return new WP_Error('dpj_social_pinterest_duplicate', $error);
+        }
+
+        $settings = self::settings();
+        $token = trim((string) $settings['pinterest_access_token']);
+        $board_id = trim((string) $settings['pinterest_board_id']);
+        if ($token === '' || $board_id === '') {
+            $error = __('Pinterest access token and board ID are required in Social Settings.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_pinterest_last_error', $error);
+            update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_FAILED);
+            return new WP_Error('dpj_social_pinterest_missing_credentials', $error);
+        }
+
+        $media_id = (int) get_post_meta($post_id, '_dpj_social_pinterest_media_id', true);
+        $image_url = $media_id > 0 ? (string) wp_get_attachment_image_url($media_id, 'full') : '';
+        if ($image_url === '') {
+            $error = __('Select a Pinterest image before publishing.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_pinterest_last_error', $error);
+            update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_FAILED);
+            return new WP_Error('dpj_social_pinterest_no_image', $error);
+        }
+
+        $title = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_title', true));
+        if ($title === '') {
+            $title = get_the_title($post_id);
+        }
+        $description = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_description', true));
+        $alt_text = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_alt_text', true));
+        $link = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_url', true));
+        if ($link === '') {
+            $link = (string) get_permalink($post_id);
+        }
+        $link = self::social_utm_url($post_id, 'pinterest');
+
+        $body = [
+            'board_id' => $board_id,
+            'title' => self::clean_ai_text($title, 100),
+            'description' => self::clean_ai_text($description, 800),
+            'link' => $link,
+            'media_source' => [
+                'source_type' => 'image_url',
+                'url' => $image_url,
+            ],
+        ];
+        if ($alt_text !== '') {
+            $body['alt_text'] = self::clean_ai_text($alt_text, 500);
+        }
+
+        $result = self::pinterest_request('https://api.pinterest.com/v5/pins', $body, $token);
+        if (is_wp_error($result)) {
+            update_post_meta($post_id, '_dpj_social_pinterest_last_error', $result->get_error_message());
+            update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_FAILED);
+            return $result;
+        }
+
+        $pin_id = isset($result['id']) ? sanitize_text_field((string) $result['id']) : '';
+        update_post_meta($post_id, '_dpj_social_pinterest_remote_id', $pin_id);
+        update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_POSTED);
+        update_post_meta($post_id, '_dpj_social_pinterest_posted_at', gmdate('c'));
+        delete_post_meta($post_id, '_dpj_social_pinterest_last_error');
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>|WP_Error
+     */
+    private static function pinterest_request(string $endpoint, array $body, string $token)
+    {
+        $response = wp_remote_post($endpoint, [
+            'timeout' => 20,
+            'headers' => [
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type' => 'application/json',
+            ],
+            'body' => wp_json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status = (int) wp_remote_retrieve_response_code($response);
+        $raw = (string) wp_remote_retrieve_body($response);
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return new WP_Error('dpj_social_pinterest_bad_response', __('Pinterest returned an unreadable response.', 'dr-purg-social-syndicator'));
+        }
+
+        if ($status < 200 || $status >= 300) {
+            $message = (string) ($decoded['message'] ?? __('Pinterest API request failed.', 'dr-purg-social-syndicator'));
+            return new WP_Error('dpj_social_pinterest_error', $message, $decoded);
+        }
+
+        return $decoded;
+    }
+
+    private static function reset_pinterest(int $post_id): void
+    {
+        foreach ([
+            '_dpj_social_pinterest_remote_id',
+            '_dpj_social_pinterest_last_error',
+            '_dpj_social_pinterest_posted_at',
+        ] as $key) {
+            delete_post_meta($post_id, $key);
+        }
+
+        update_post_meta($post_id, '_dpj_social_pinterest_status', self::STATUS_DRAFT);
     }
 
     public static function filter_theme_social_image_url(string $url): string
