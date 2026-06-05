@@ -214,6 +214,24 @@
   margin: 0 0 6px;
 }
 
+.dpj-tracked-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  flex-wrap: wrap;
+}
+
+.dpj-tracked-link label {
+  flex: 0 0 180px;
+  font-weight: 600;
+}
+
+.dpj-tracked-link input {
+  flex: 1 1 320px;
+  min-width: 220px;
+}
+
 .dpj-qa-crop {
   margin: 6px 0 0;
   padding-left: 18px;

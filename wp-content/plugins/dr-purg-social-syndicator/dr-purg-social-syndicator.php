@@ -626,6 +626,107 @@ final class Dr_Purg_Social_Syndicator
         );
     }
 
+    private static function social_utm_enabled(): bool
+    {
+        return self::env_bool('SOCIAL_UTM_ENABLE', false);
+    }
+
+    private static function utm_platform_medium(string $source): string
+    {
+        switch ($source) {
+            case 'facebook':
+                return self::env('SOCIAL_UTM_FACEBOOK_MEDIUM', 'group');
+            case 'pinterest':
+                return self::env('SOCIAL_UTM_PINTEREST_MEDIUM', 'pin');
+            case 'reddit':
+                return self::env('SOCIAL_UTM_REDDIT_MEDIUM', 'social');
+            default:
+                return 'social';
+        }
+    }
+
+    /**
+     * Build a UTM-tagged tracking URL for a post on a given platform.
+     *
+     * Campaign defaults to the post slug; an optional $variant fills utm_content
+     * (reserved for the Phase 3 hook-variant work). Returns the plain permalink
+     * when tracking is disabled or the post has no URL, so callers are safe to
+     * use it unconditionally.
+     */
+    private static function social_utm_url(int $post_id, string $source, string $variant = ''): string
+    {
+        $permalink = get_permalink($post_id) ?: '';
+        if ($permalink === '' || !self::social_utm_enabled()) {
+            return $permalink;
+        }
+
+        $base = remove_query_arg(['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'], $permalink);
+        $campaign = sanitize_title((string) get_post_field('post_name', $post_id));
+        if ($campaign === '') {
+            $campaign = (string) $post_id;
+        }
+
+        $args = [
+            'utm_source' => $source,
+            'utm_medium' => self::utm_platform_medium($source),
+            'utm_campaign' => $campaign,
+        ];
+        $variant = sanitize_title($variant);
+        if ($variant !== '') {
+            $args['utm_content'] = $variant;
+        }
+
+        return add_query_arg($args, $base);
+    }
+
+    /**
+     * Replace the post's plain permalink inside a text with the tracked URL.
+     *
+     * No-op when tracking is disabled, the permalink is absent, or the text
+     * already carries a utm_source (idempotent — safe to call before posting).
+     */
+    private static function apply_utm_to_text(string $text, int $post_id, string $source, string $variant = ''): string
+    {
+        if (!self::social_utm_enabled() || strpos($text, 'utm_source=') !== false) {
+            return $text;
+        }
+
+        $permalink = get_permalink($post_id) ?: '';
+        if ($permalink === '' || strpos($text, $permalink) === false) {
+            return $text;
+        }
+
+        return str_replace($permalink, self::social_utm_url($post_id, $source, $variant), $text);
+    }
+
+    private static function render_tracked_links_section(int $post_id): void
+    {
+        if (!self::social_utm_enabled()) {
+            return;
+        }
+
+        $links = [
+            'facebook' => __('Facebook (groups / page)', 'dr-purg-social-syndicator'),
+            'pinterest' => __('Pinterest', 'dr-purg-social-syndicator'),
+            'reddit' => __('Reddit', 'dr-purg-social-syndicator'),
+        ];
+        ?>
+        <section class="dpj-social-card dpj-tracked-links" data-dpj-tracked-links>
+            <h2><?php esc_html_e('Tracked links (UTM)', 'dr-purg-social-syndicator'); ?></h2>
+            <p class="dpj-social-note"><?php esc_html_e('Use these UTM-tagged links when you post so clicks show up by source in Analytics. The Facebook first comment is auto-tagged when you post through the API.', 'dr-purg-social-syndicator'); ?></p>
+            <?php foreach ($links as $source => $label) :
+                $field_id = 'dpj-utm-' . $source;
+                ?>
+                <div class="dpj-tracked-link">
+                    <label for="<?php echo esc_attr($field_id); ?>"><?php echo esc_html($label); ?></label>
+                    <input type="text" readonly id="<?php echo esc_attr($field_id); ?>" value="<?php echo esc_attr(self::social_utm_url($post_id, (string) $source)); ?>">
+                    <button class="button" type="button" data-dpj-copy="#<?php echo esc_attr($field_id); ?>"><?php esc_html_e('Copy', 'dr-purg-social-syndicator'); ?></button>
+                </div>
+            <?php endforeach; ?>
+        </section>
+        <?php
+    }
+
     private static function default_pixazo_prompt(int $post_id): string
     {
         $title = get_the_title($post_id);
@@ -968,6 +1069,7 @@ final class Dr_Purg_Social_Syndicator
                 <input type="hidden" name="post_id" value="<?php echo esc_attr((string) $post_id); ?>">
 
                 <?php self::render_source_section($source); ?>
+                <?php self::render_tracked_links_section($post_id); ?>
                 <?php self::render_ai_social_draft_section($post_id); ?>
                 <?php self::render_pixazo_section($post_id); ?>
                 <?php self::render_social_image_converter_section($post_id); ?>
@@ -2956,6 +3058,7 @@ final class Dr_Purg_Social_Syndicator
         update_post_meta($post_id, '_dpj_social_facebook_posted_at', gmdate('c'));
         delete_post_meta($post_id, '_dpj_social_facebook_last_error');
 
+        $first_comment = self::apply_utm_to_text($first_comment, $post_id, 'facebook');
         if ($first_comment !== '' && $post_remote_id !== '') {
             $comment_result = self::facebook_request('https://graph.facebook.com/' . rawurlencode($graph_version) . '/' . rawurlencode($post_remote_id) . '/comments', [
                 'message' => $first_comment,

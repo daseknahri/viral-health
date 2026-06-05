@@ -204,6 +204,17 @@ function checkPluginContract() {
     /ai_social_schema/,
   ]);
 
+  requireIncludes('UTM tracking contract', plugin, [
+    /social_utm_enabled/,
+    /social_utm_url/,
+    /apply_utm_to_text/,
+    /utm_source/,
+    /utm_campaign/,
+    /SOCIAL_UTM_ENABLE/,
+    /Tracked links/,
+    /render_tracked_links_section/,
+  ]);
+
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
     /wp\.media/,
     /navigator\.clipboard/,
@@ -214,6 +225,7 @@ function checkPluginContract() {
     /\.dpj-social-card/,
     /\.dpj-social-qa/,
     /\.dpj-overlay-counter/,
+    /\.dpj-tracked-link/,
     /\.dpj-status--posted/,
     /\.dpj-status--failed/,
   ]);

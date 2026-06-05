@@ -76,6 +76,24 @@ Bottom hint text
 
 The assistant never posts to Facebook, Pinterest, or Reddit. It only fills draft fields. The plugin strips article URLs from the Facebook summary, keeps the link in the first comment, validates JSON, limits field lengths, and preserves duplicate-posting locks. The bottom-hint checkbox stays manual; AI can draft the hint text, but the editor chooses whether to show it on the generated images.
 
+## Link tracking (UTM)
+
+Set `SOCIAL_UTM_ENABLE=1` to turn on click attribution. When it is on:
+
+- The Social Editor shows a `Tracked links (UTM)` panel near the top with a UTM-tagged link per platform and a copy button. Use those links when you post manually so Analytics (GA4 / Site Kit) can attribute the clicks.
+- When you post to Facebook through the API, the article link inside the first comment is automatically rewritten to its tracked version at post time. The stored first-comment text stays clean and readable; only the posted copy is tagged.
+
+Each link carries `utm_source` (the platform: `facebook`, `pinterest`, `reddit`), `utm_medium` (configurable per platform — defaults `group` / `pin` / `social`), and `utm_campaign` (the post slug). `utm_content` is reserved for the upcoming hook-variant testing. Tagging is idempotent: a link that already has a `utm_source` is left alone, so re-posting never double-tags.
+
+```text
+SOCIAL_UTM_ENABLE=1
+SOCIAL_UTM_FACEBOOK_MEDIUM=group
+SOCIAL_UTM_PINTEREST_MEDIUM=pin
+SOCIAL_UTM_REDDIT_MEDIUM=social
+```
+
+When the flag is off, links are the plain canonical URL and nothing is rewritten, so the default behavior is unchanged.
+
 ## Social image converter
 
 The converter never edits the original featured image. It creates separate JPG attachments in the Media Library and assigns them back to the social package:
