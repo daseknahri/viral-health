@@ -24,6 +24,7 @@ final class Dr_Purg_Social_Syndicator
     private const PERF_SLUG = 'dr-purg-social-performance';
     private const COCKPIT_SLUG = 'dr-purg-social-cockpit';
     private const CALENDAR_SLUG = 'dr-purg-social-calendar';
+    private const IMPORT_SLUG = 'dr-purg-social-import';
     private const REDIRECT_TRANSIENT_PREFIX = 'dpj_social_redirect_';
     private const STATUS_NEEDS = 'needs_social';
     private const STATUS_DRAFT = 'draft';
@@ -290,6 +291,15 @@ final class Dr_Purg_Social_Syndicator
 
         add_submenu_page(
             self::QUEUE_SLUG,
+            __('New from Claude', 'dr-purg-social-syndicator'),
+            __('New from Claude', 'dr-purg-social-syndicator'),
+            'edit_posts',
+            self::IMPORT_SLUG,
+            [self::class, 'render_import_page']
+        );
+
+        add_submenu_page(
+            self::QUEUE_SLUG,
             __('Social Settings', 'dr-purg-social-syndicator'),
             __('Settings', 'dr-purg-social-syndicator'),
             'manage_options',
@@ -319,7 +329,7 @@ final class Dr_Purg_Social_Syndicator
     public static function enqueue_admin_assets(string $hook): void
     {
         $page = isset($_GET['page']) ? sanitize_key(wp_unslash((string) $_GET['page'])) : '';
-        $is_social_page = in_array($page, [self::QUEUE_SLUG, self::EDITOR_SLUG, self::SETTINGS_SLUG, self::COCKPIT_SLUG, self::PERF_SLUG, self::CALENDAR_SLUG], true);
+        $is_social_page = in_array($page, [self::QUEUE_SLUG, self::EDITOR_SLUG, self::SETTINGS_SLUG, self::COCKPIT_SLUG, self::PERF_SLUG, self::CALENDAR_SLUG, self::IMPORT_SLUG], true);
 
         if (!$is_social_page) {
             return;
@@ -463,6 +473,11 @@ final class Dr_Purg_Social_Syndicator
             } else {
                 self::handle_performance_import();
             }
+            return;
+        }
+
+        if (isset($_POST['dpj_social_import_action'])) {
+            self::handle_import_post();
             return;
         }
 
@@ -658,6 +673,134 @@ final class Dr_Purg_Social_Syndicator
 
         wp_safe_redirect(add_query_arg(['page' => self::CALENDAR_SLUG, 'dpj_social_notice' => $notice], admin_url('admin.php')));
         exit;
+    }
+
+    /**
+     * Create a complete draft post from a single Claude "bundle" (one JSON object
+     * holding the article HTML + SEO + every social field). The article HTML goes
+     * to post_content (the only thing shown publicly); SEO and social fields go to
+     * meta, so nothing extra leaks onto the live page. URL-bearing social fields
+     * are left for ensure_social_package to fill with the real permalink at
+     * publish. Reviewed-only: the post is created as a DRAFT for the editor to
+     * review and publish.
+     */
+    private static function handle_import_post(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to import content.', 'dr-purg-social-syndicator'));
+        }
+
+        check_admin_referer('dpj_social_import', 'dpj_social_import_nonce');
+
+        $redirect = static function (string $notice) {
+            wp_safe_redirect(add_query_arg(['page' => self::IMPORT_SLUG, 'dpj_social_notice' => $notice], admin_url('admin.php')));
+            exit;
+        };
+
+        $raw = isset($_POST['claude_bundle']) ? trim((string) wp_unslash($_POST['claude_bundle'])) : '';
+        if ($raw === '') {
+            $redirect('import_empty');
+        }
+
+        $bundle = self::decode_ai_json_object($raw);
+        if (!is_array($bundle)) {
+            $redirect('import_bad_json');
+        }
+
+        $title = sanitize_text_field((string) ($bundle['title'] ?? ''));
+        $content_html = (string) ($bundle['content_html'] ?? '');
+        if ($title === '' || trim($content_html) === '') {
+            $redirect('import_incomplete');
+        }
+
+        $post_id = wp_insert_post([
+            'post_title' => $title,
+            'post_content' => wp_kses_post($content_html),
+            'post_excerpt' => sanitize_textarea_field((string) ($bundle['excerpt'] ?? '')),
+            'post_status' => 'draft',
+            'post_type' => 'post',
+        ], true);
+
+        if (is_wp_error($post_id) || (int) $post_id <= 0) {
+            $redirect('import_failed');
+        }
+        $post_id = (int) $post_id;
+
+        self::apply_imported_bundle($post_id, $bundle);
+
+        wp_safe_redirect(admin_url('post.php?post=' . $post_id . '&action=edit'));
+        exit;
+    }
+
+    /**
+     * Distribute a decoded Claude bundle across SEO meta, taxonomy, and the social
+     * package meta for a freshly created post.
+     *
+     * @param array<string, mixed> $bundle
+     */
+    private static function apply_imported_bundle(int $post_id, array $bundle): void
+    {
+        update_post_meta($post_id, '_kepoli_post_kind', 'article');
+
+        $seo_title = self::clean_ai_text((string) ($bundle['seo_title'] ?? $bundle['title'] ?? ''), 58);
+        if ($seo_title !== '') {
+            update_post_meta($post_id, '_kepoli_seo_title', $seo_title);
+        }
+        $meta_description = self::clean_ai_text((string) ($bundle['meta_description'] ?? $bundle['excerpt'] ?? ''), 180);
+        if ($meta_description !== '') {
+            update_post_meta($post_id, '_kepoli_meta_description', $meta_description);
+        }
+
+        $tags = $bundle['tags'] ?? [];
+        if (is_array($tags) && $tags !== []) {
+            $clean_tags = [];
+            foreach ($tags as $tag) {
+                $tag = sanitize_text_field((string) $tag);
+                if ($tag !== '') {
+                    $clean_tags[] = $tag;
+                }
+            }
+            if ($clean_tags !== []) {
+                wp_set_post_tags($post_id, array_slice($clean_tags, 0, 15), false);
+            }
+        }
+
+        $category = sanitize_text_field((string) ($bundle['category'] ?? ''));
+        if ($category !== '') {
+            $term = term_exists($category, 'category');
+            if ($term === null || $term === 0) {
+                $term = wp_insert_term($category, 'category');
+            }
+            if (!is_wp_error($term) && isset($term['term_id'])) {
+                wp_set_post_categories($post_id, [(int) $term['term_id']], false);
+            }
+        }
+
+        $image_alt = self::clean_ai_text((string) ($bundle['image_alt'] ?? ''), 160);
+        if ($image_alt !== '') {
+            update_post_meta($post_id, '_kepoli_image_plan_alt', $image_alt);
+        }
+
+        // Social creative fields. URL/link fields (facebook first comment, links,
+        // pinterest_url) are deliberately omitted — ensure_social_package fills
+        // them with the real permalink when the post is published.
+        $social = [
+            '_dpj_social_facebook_hook' => self::clean_ai_text((string) ($bundle['facebook_hook'] ?? ''), 110),
+            '_dpj_social_facebook_summary' => self::clean_ai_text((string) ($bundle['facebook_summary'] ?? ''), 320),
+            '_dpj_social_pinterest_title' => self::clean_ai_text((string) ($bundle['pinterest_title'] ?? ''), 100),
+            '_dpj_social_pinterest_description' => self::clean_ai_text((string) ($bundle['pinterest_description'] ?? ''), 460),
+            '_dpj_social_pinterest_alt_text' => self::clean_ai_text((string) ($bundle['pinterest_alt_text'] ?? ''), 140),
+            '_dpj_social_reddit_title' => self::clean_ai_text((string) ($bundle['reddit_title'] ?? ''), 130),
+            '_dpj_social_reddit_body' => self::clean_ai_text((string) ($bundle['reddit_body'] ?? ''), 900, true),
+            '_dpj_social_local_overlay_text' => self::short_overlay_text((string) ($bundle['overlay_text'] ?? '')),
+            '_dpj_social_local_hint_text' => self::short_hint_text((string) ($bundle['bottom_hint_text'] ?? '')),
+        ];
+        foreach ($social as $key => $value) {
+            if ($value !== '') {
+                update_post_meta($post_id, $key, $value);
+            }
+        }
+        update_post_meta($post_id, '_dpj_social_local_overlay_enable', '1');
     }
 
     /**
@@ -1828,6 +1971,65 @@ final class Dr_Purg_Social_Syndicator
                     </form>
                 </section>
             <?php endforeach; ?>
+        </div>
+        <?php
+    }
+
+    public static function render_import_page(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to import content.', 'dr-purg-social-syndicator'));
+        }
+
+        $notice = isset($_GET['dpj_social_notice']) ? sanitize_key(wp_unslash((string) $_GET['dpj_social_notice'])) : '';
+        $errors = [
+            'import_empty' => __('Paste the Claude bundle first.', 'dr-purg-social-syndicator'),
+            'import_bad_json' => __('That did not parse as JSON. Copy the whole bundle Claude returned (it should start with { and end with }).', 'dr-purg-social-syndicator'),
+            'import_incomplete' => __('The bundle needs at least a "title" and "content_html". Check the output and try again.', 'dr-purg-social-syndicator'),
+            'import_failed' => __('Could not create the draft post. Try again.', 'dr-purg-social-syndicator'),
+        ];
+        ?>
+        <div class="wrap dpj-social-wrap dpj-import">
+            <h1><?php esc_html_e('New from Claude', 'dr-purg-social-syndicator'); ?></h1>
+            <?php if (isset($errors[$notice])) : ?>
+                <div class="notice notice-error"><p><?php echo esc_html($errors[$notice]); ?></p></div>
+            <?php endif; ?>
+            <p><?php esc_html_e('Paste ONE Claude bundle (a single JSON object holding the article plus SEO and all social fields). This creates a clean DRAFT post: only the article shows on the live page; SEO and social copy go into their fields for you to review, then publish. URLs in the social fields are filled with the real link automatically when you publish.', 'dr-purg-social-syndicator'); ?></p>
+            <p class="dpj-social-note"><?php esc_html_e('Use the "Master bundle prompt" from docs/chatgpt-prompt-pack.md in your Claude editor project, paste your topic, and copy the JSON it returns into the box below.', 'dr-purg-social-syndicator'); ?></p>
+
+            <details class="dpj-import-spec">
+                <summary><?php esc_html_e('Expected bundle fields', 'dr-purg-social-syndicator'); ?></summary>
+                <pre>{
+  "title": "...",
+  "seo_title": "... (<=58 chars)",
+  "meta_description": "... (<=180 chars)",
+  "excerpt": "...",
+  "category": "...",
+  "tags": ["...", "..."],
+  "image_alt": "...",
+  "content_html": "&lt;p&gt;...&lt;/p&gt;&lt;h2&gt;...&lt;/h2&gt; (article body only)",
+  "facebook_hook": "...",
+  "facebook_summary": "...",
+  "pinterest_title": "...",
+  "pinterest_description": "...",
+  "pinterest_alt_text": "...",
+  "reddit_title": "...",
+  "reddit_body": "...",
+  "overlay_text": "...",
+  "bottom_hint_text": "LINK IN FIRST COMMENT"
+}</pre>
+            </details>
+
+            <form method="post" action="<?php echo esc_url(add_query_arg(['page' => self::IMPORT_SLUG], admin_url('admin.php'))); ?>" class="dpj-social-card">
+                <?php wp_nonce_field('dpj_social_import', 'dpj_social_import_nonce'); ?>
+                <label class="dpj-field" for="dpj-claude-bundle"><?php esc_html_e('Claude bundle (JSON)', 'dr-purg-social-syndicator'); ?>
+                    <textarea id="dpj-claude-bundle" name="claude_bundle" rows="16" class="large-text code" placeholder='{ "title": "...", "content_html": "<p>...</p>", ... }'></textarea>
+                </label>
+                <p>
+                    <button class="button button-primary" type="submit" name="dpj_social_import_action" value="create"><?php esc_html_e('Create draft from bundle', 'dr-purg-social-syndicator'); ?></button>
+                    <span class="dpj-social-note"><?php esc_html_e('Creates a draft and opens it for review. Nothing is published automatically.', 'dr-purg-social-syndicator'); ?></span>
+                </p>
+            </form>
         </div>
         <?php
     }

@@ -278,6 +278,17 @@ function checkPluginContract() {
     /Posting Cockpit/,
   ]);
 
+  requireIncludes('Claude bundle import contract', plugin, [
+    /handle_import_post/,
+    /apply_imported_bundle/,
+    /render_import_page/,
+    /IMPORT_SLUG/,
+    /dpj_social_import_action/,
+    /content_html/,
+    /_kepoli_meta_description/,
+    /New from Claude/,
+  ]);
+
   requireIncludes('content calendar contract', plugin, [
     /render_calendar_page/,
     /handle_calendar_post/,
