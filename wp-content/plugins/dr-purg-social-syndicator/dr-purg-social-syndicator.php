@@ -209,13 +209,19 @@ final class Dr_Purg_Social_Syndicator
 
     private static function social_ai_model(): string
     {
-        return self::env('SOCIAL_AI_MODEL', self::env('AI_EXTRACTION_MODEL', 'inclusionai/ling-2.6-1t:free'));
+        $default = self::social_ai_provider() === 'anthropic'
+            ? 'claude-opus-4-8'
+            : 'inclusionai/ling-2.6-1t:free';
+
+        return self::env('SOCIAL_AI_MODEL', self::env('AI_EXTRACTION_MODEL', $default));
     }
 
     private static function social_ai_enabled(): bool
     {
         $enabled = self::env_bool('SOCIAL_AI_ENABLE', self::env_bool('AI_EXTRACTION_ENABLE', false));
-        return $enabled && self::social_ai_provider() === 'openrouter' && self::social_ai_api_key() !== '';
+        return $enabled
+            && in_array(self::social_ai_provider(), ['openrouter', 'anthropic'], true)
+            && self::social_ai_api_key() !== '';
     }
 
     private static function can_manage(): bool
@@ -1036,7 +1042,7 @@ final class Dr_Purg_Social_Syndicator
                 <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="generate_ai_social_draft" <?php disabled(!$enabled); ?>><?php esc_html_e('Generate AI social draft', 'dr-purg-social-syndicator'); ?></button>
             </header>
             <?php if (!$enabled) : ?>
-                <div class="notice notice-warning inline"><p><?php esc_html_e('Enable SOCIAL_AI_ENABLE=1 or AI_EXTRACTION_ENABLE=1 and provide an OpenRouter API key in the environment before generating drafts.', 'dr-purg-social-syndicator'); ?></p></div>
+                <div class="notice notice-warning inline"><p><?php esc_html_e('Set SOCIAL_AI_ENABLE=1, SOCIAL_AI_PROVIDER=openrouter or anthropic, and the matching API key in the environment before generating drafts.', 'dr-purg-social-syndicator'); ?></p></div>
             <?php endif; ?>
             <?php if ($last_error !== '') : ?>
                 <div class="notice notice-error inline"><p><?php echo esc_html($last_error); ?></p></div>
@@ -1424,7 +1430,7 @@ final class Dr_Purg_Social_Syndicator
     private static function generate_ai_social_draft(int $post_id)
     {
         if (!self::social_ai_enabled()) {
-            $error = __('AI social drafts are not enabled. Configure SOCIAL_AI_ENABLE=1 or AI_EXTRACTION_ENABLE=1 and an OpenRouter API key in the environment.', 'dr-purg-social-syndicator');
+            $error = __('AI social drafts are not enabled. Set SOCIAL_AI_ENABLE=1, SOCIAL_AI_PROVIDER=openrouter or anthropic, and the matching API key in the environment.', 'dr-purg-social-syndicator');
             update_post_meta($post_id, '_dpj_social_ai_last_error', $error);
             return new WP_Error('dpj_social_ai_disabled', $error);
         }
@@ -1445,10 +1451,45 @@ final class Dr_Purg_Social_Syndicator
 
     private static function request_ai_social_draft(int $post_id)
     {
-        $model = self::social_ai_model();
+        $system = 'You are a strict social distribution editor for a responsible health publication. Return only valid JSON. Never diagnose, promise cures, invent facts, or write fear-mongering medical claims.';
         $prompt = self::ai_social_prompt($post_id);
+
+        $payload = self::social_ai_complete($system, $prompt, self::ai_social_schema());
+        if (is_wp_error($payload)) {
+            return $payload;
+        }
+
+        return self::sanitize_ai_social_payload($payload, $post_id);
+    }
+
+    /**
+     * Run one AI completion through the configured provider and return the
+     * decoded JSON object (associative array) or a WP_Error.
+     *
+     * @param array<string, mixed> $schema JSON schema for structured outputs (Anthropic only).
+     * @return array<string, mixed>|WP_Error
+     */
+    private static function social_ai_complete(string $system, string $prompt, array $schema)
+    {
+        $timeout = self::env_int('SOCIAL_AI_TIMEOUT_SECONDS', self::env_int('AI_EXTRACTION_TIMEOUT_SECONDS', 16, 4, 45), 4, 45);
+        $max_tokens = self::env_int('SOCIAL_AI_MAX_TOKENS', self::env_int('AI_EXTRACTION_MAX_TOKENS', 1200, 300, 2600), 300, 2600);
+
+        if (self::social_ai_provider() === 'anthropic') {
+            return self::anthropic_complete($system, $prompt, $schema, $timeout, $max_tokens);
+        }
+
+        return self::openrouter_complete($system, $prompt, $timeout, $max_tokens);
+    }
+
+    /**
+     * OpenRouter chat-completions call returning the decoded JSON object.
+     *
+     * @return array<string, mixed>|WP_Error
+     */
+    private static function openrouter_complete(string $system, string $prompt, int $timeout, int $max_tokens)
+    {
         $response = wp_remote_post('https://openrouter.ai/api/v1/chat/completions', [
-            'timeout' => self::env_int('SOCIAL_AI_TIMEOUT_SECONDS', self::env_int('AI_EXTRACTION_TIMEOUT_SECONDS', 16, 4, 45), 4, 45),
+            'timeout' => $timeout,
             'headers' => [
                 'Authorization' => 'Bearer ' . self::social_ai_api_key(),
                 'Content-Type' => 'application/json',
@@ -1456,19 +1497,13 @@ final class Dr_Purg_Social_Syndicator
                 'X-Title' => 'Dr Purg Jr. Social Syndicator',
             ],
             'body' => wp_json_encode([
-                'model' => $model,
+                'model' => self::social_ai_model(),
                 'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'You are a strict social distribution editor for a responsible health publication. Return only valid JSON. Never diagnose, promise cures, invent facts, or write fear-mongering medical claims.',
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
+                    ['role' => 'system', 'content' => $system],
+                    ['role' => 'user', 'content' => $prompt],
                 ],
                 'temperature' => 0.55,
-                'max_tokens' => self::env_int('SOCIAL_AI_MAX_TOKENS', self::env_int('AI_EXTRACTION_MAX_TOKENS', 1200, 300, 2600), 300, 2600),
+                'max_tokens' => $max_tokens,
                 'response_format' => ['type' => 'json_object'],
             ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         ]);
@@ -1493,7 +1528,116 @@ final class Dr_Purg_Social_Syndicator
             return new WP_Error('dpj_social_ai_bad_json', __('The AI model did not return valid JSON.', 'dr-purg-social-syndicator'));
         }
 
-        return self::sanitize_ai_social_payload($payload, $post_id);
+        return $payload;
+    }
+
+    /**
+     * Anthropic Messages API call using structured outputs for guaranteed JSON.
+     *
+     * The static system block carries a cache_control breakpoint so future
+     * multi-variant prompts that share a large prefix can hit the prompt cache.
+     * temperature and effort are intentionally omitted so the same request shape
+     * is valid across every Claude tier (Opus rejects temperature; Haiku rejects
+     * effort).
+     *
+     * @param array<string, mixed> $schema
+     * @return array<string, mixed>|WP_Error
+     */
+    private static function anthropic_complete(string $system, string $prompt, array $schema, int $timeout, int $max_tokens)
+    {
+        $response = wp_remote_post('https://api.anthropic.com/v1/messages', [
+            'timeout' => $timeout,
+            'headers' => [
+                'x-api-key' => self::social_ai_api_key(),
+                'anthropic-version' => self::env('SOCIAL_AI_ANTHROPIC_VERSION', self::env('AI_ANTHROPIC_VERSION', '2023-06-01')),
+                'content-type' => 'application/json',
+            ],
+            'body' => wp_json_encode([
+                'model' => self::social_ai_model(),
+                'max_tokens' => $max_tokens,
+                'system' => [[
+                    'type' => 'text',
+                    'text' => $system,
+                    'cache_control' => ['type' => 'ephemeral'],
+                ]],
+                'messages' => [
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'output_config' => [
+                    'format' => [
+                        'type' => 'json_schema',
+                        'schema' => $schema,
+                    ],
+                ],
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status = (int) wp_remote_retrieve_response_code($response);
+        $body = (string) wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+        if ($status < 200 || $status >= 300) {
+            $message = is_array($decoded) && is_array($decoded['error'] ?? null)
+                ? (string) ($decoded['error']['message'] ?? __('Anthropic request failed.', 'dr-purg-social-syndicator'))
+                : sprintf(__('Anthropic returned HTTP error %d.', 'dr-purg-social-syndicator'), $status);
+            return new WP_Error('dpj_social_ai_http_error', $message);
+        }
+
+        if (is_array($decoded) && ($decoded['stop_reason'] ?? '') === 'refusal') {
+            return new WP_Error('dpj_social_ai_refusal', __('The AI model declined to draft this post. Review the source content.', 'dr-purg-social-syndicator'));
+        }
+
+        $content = '';
+        if (is_array($decoded) && is_array($decoded['content'] ?? null)) {
+            foreach ($decoded['content'] as $block) {
+                if (is_array($block) && ($block['type'] ?? '') === 'text') {
+                    $content .= (string) ($block['text'] ?? '');
+                }
+            }
+        }
+
+        $payload = self::decode_ai_json_object($content);
+        if (!is_array($payload)) {
+            return new WP_Error('dpj_social_ai_bad_json', __('The AI model did not return valid JSON.', 'dr-purg-social-syndicator'));
+        }
+
+        return $payload;
+    }
+
+    /**
+     * JSON schema for the reviewed social package (Anthropic structured outputs).
+     *
+     * @return array<string, mixed>
+     */
+    private static function ai_social_schema(): array
+    {
+        $fields = [
+            'facebook_hook',
+            'facebook_summary',
+            'facebook_first_comment',
+            'pinterest_title',
+            'pinterest_description',
+            'pinterest_alt_text',
+            'reddit_title',
+            'reddit_body',
+            'overlay_text',
+            'bottom_hint_text',
+        ];
+
+        $properties = [];
+        foreach ($fields as $field) {
+            $properties[$field] = ['type' => 'string'];
+        }
+
+        return [
+            'type' => 'object',
+            'additionalProperties' => false,
+            'properties' => $properties,
+            'required' => $fields,
+        ];
     }
 
     private static function ai_social_prompt(int $post_id): string

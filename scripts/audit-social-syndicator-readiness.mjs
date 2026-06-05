@@ -192,6 +192,18 @@ function checkPluginContract() {
     /data-dpj-overlay-counter/,
   ]);
 
+  requireIncludes('AI provider contract', plugin, [
+    /social_ai_provider/,
+    /openrouter_complete/,
+    /anthropic_complete/,
+    /api\.anthropic\.com\/v1\/messages/,
+    /x-api-key/,
+    /anthropic-version/,
+    /output_config/,
+    /cache_control/,
+    /ai_social_schema/,
+  ]);
+
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
     /wp\.media/,
     /navigator\.clipboard/,

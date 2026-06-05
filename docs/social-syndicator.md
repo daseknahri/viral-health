@@ -38,6 +38,8 @@ SOCIAL_AI_MODEL=inclusionai/ling-2.6-1t:free
 
 The existing `AI_EXTRACTION_*` variables are also accepted as fallbacks, so the same OpenRouter setup can power author tools and social drafting.
 
+To use Claude instead, set `SOCIAL_AI_PROVIDER=anthropic`, put a Claude API key in `SOCIAL_AI_API_KEY`, and set `SOCIAL_AI_MODEL` to a Claude model. The default for the Anthropic provider is `claude-opus-4-8`; for high-volume social drafting `claude-haiku-4-5` is the cheap choice and `claude-sonnet-4-6` is the mid tier. The Anthropic path uses the Messages API with structured outputs, so the model is constrained to return valid JSON for the reviewed fields, and it keeps the same review-first behavior — it never posts. The same provider switch (`AI_EXTRACTION_PROVIDER=anthropic`) is available for the author-tools `Auto fill` extraction.
+
 The Page token must be allowed to publish to the Facebook Page. Use a long-lived Page token with `pages_manage_posts` and `pages_read_engagement`. First-comment posting may also require `pages_manage_engagement`. The plugin sends reviewed posts to the Page only; it does not post to personal profiles.
 
 Facebook posts use this message shape:

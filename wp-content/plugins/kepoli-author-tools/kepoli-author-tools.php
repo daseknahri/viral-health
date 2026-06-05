@@ -207,10 +207,25 @@ final class Food_Blog_Author_Tools
             return false;
         }
 
-        return self::openrouter_api_key() !== '';
+        return in_array(self::ai_extraction_provider(), ['openrouter', 'anthropic'], true)
+            && self::ai_extraction_api_key() !== '';
     }
 
-    private static function openrouter_api_key(): string
+    private static function ai_extraction_provider(): string
+    {
+        return strtolower(self::env('AI_EXTRACTION_PROVIDER', 'openrouter'));
+    }
+
+    private static function ai_extraction_model(): string
+    {
+        $default = self::ai_extraction_provider() === 'anthropic'
+            ? 'claude-opus-4-8'
+            : 'inclusionai/ling-2.6-1t:free';
+
+        return self::env('AI_EXTRACTION_MODEL', $default);
+    }
+
+    private static function ai_extraction_api_key(): string
     {
         return self::env('AI_EXTRACTION_API_KEY', self::env('OPENROUTER_API_KEY'));
     }
@@ -404,7 +419,7 @@ final class Food_Blog_Author_Tools
             wp_send_json_error(['message' => self::ui_text('Adauga mai intai titlul si continutul retetei.', 'Add the recipe title and content first.')], 400);
         }
 
-        $result = self::openrouter_extract_post($kind, $title, $source);
+        $result = self::extract_post($kind, $title, $source);
         if (is_wp_error($result)) {
             wp_send_json_error(['message' => $result->get_error_message()], 502);
         }
@@ -424,42 +439,53 @@ final class Food_Blog_Author_Tools
         return mb_substr($value, 0, self::env_int('AI_EXTRACTION_MAX_CHARS', 9000, 1000, 20000));
     }
 
-    private static function openrouter_extract_post(string $kind, string $title, string $source)
+    private static function extract_post(string $kind, string $title, string $source)
     {
-        $model = self::env('AI_EXTRACTION_MODEL', 'inclusionai/ling-2.6-1t:free');
-        $timeout = self::env_int('AI_EXTRACTION_TIMEOUT_SECONDS', 14, 4, 30);
         $public_locale = self::public_locale();
         $language = self::public_is_english() ? 'English' : 'Romanian';
-        $schema = $kind === 'recipe'
+        $shape = $kind === 'recipe'
             ? '{"servings":"4 servings","prepMinutes":15,"cookMinutes":30,"totalMinutes":45,"ingredients":["one clean ingredient per line"],"steps":["one clean cooking step per line"]}'
             : '{"summary":"short factual summary","metaDescription":"SEO description under 155 characters","tags":["short tag"]}';
 
+        $system = 'You are a strict content extraction engine. You never write prose outside JSON.';
         $prompt = "Extract structured fields from the post below. Return ONLY valid JSON, no markdown.\n"
             . "Public language: {$language} ({$public_locale}). Keep extracted text in the post language.\n"
             . "Post type: {$kind}.\n"
-            . "Required JSON shape: {$schema}\n"
+            . "Required JSON shape: {$shape}\n"
             . "Rules: do not invent ingredients, do not add HTML, keep steps in cooking order, use integer minutes, infer totalMinutes only from prep+cook or explicit total, keep arrays clean and deduplicated.\n\n"
             . "Title: {$title}\n\nContent:\n{$source}";
 
+        $payload = self::ai_extraction_provider() === 'anthropic'
+            ? self::anthropic_extract($system, $prompt, self::extraction_schema($kind))
+            : self::openrouter_extract($system, $prompt);
+
+        if (is_wp_error($payload)) {
+            return $payload;
+        }
+
+        return $kind === 'recipe'
+            ? ['recipe' => self::sanitize_ai_recipe_payload($payload)]
+            : ['article' => self::sanitize_ai_article_payload($payload)];
+    }
+
+    /**
+     * @return array<string, mixed>|WP_Error
+     */
+    private static function openrouter_extract(string $system, string $prompt)
+    {
         $response = wp_remote_post('https://openrouter.ai/api/v1/chat/completions', [
-            'timeout' => $timeout,
+            'timeout' => self::env_int('AI_EXTRACTION_TIMEOUT_SECONDS', 14, 4, 30),
             'headers' => [
-                'Authorization' => 'Bearer ' . self::openrouter_api_key(),
+                'Authorization' => 'Bearer ' . self::ai_extraction_api_key(),
                 'Content-Type' => 'application/json',
                 'HTTP-Referer' => home_url('/'),
                 'X-Title' => self::site_name(),
             ],
             'body' => wp_json_encode([
-                'model' => $model,
+                'model' => self::ai_extraction_model(),
                 'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'You are a strict food-blog extraction engine. You never write prose outside JSON.',
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => $prompt,
-                    ],
+                    ['role' => 'system', 'content' => $system],
+                    ['role' => 'user', 'content' => $prompt],
                 ],
                 'temperature' => 0.1,
                 'max_tokens' => self::env_int('AI_EXTRACTION_MAX_TOKENS', 1400, 300, 3000),
@@ -484,9 +510,115 @@ final class Food_Blog_Author_Tools
             return new WP_Error('openrouter_bad_json', self::ui_text('Modelul AI nu a returnat JSON valid.', 'The AI model did not return valid JSON.'));
         }
 
-        return $kind === 'recipe'
-            ? ['recipe' => self::sanitize_ai_recipe_payload($payload)]
-            : ['article' => self::sanitize_ai_article_payload($payload)];
+        return $payload;
+    }
+
+    /**
+     * Anthropic Messages API extraction with structured outputs.
+     *
+     * temperature/effort are omitted so the request is valid across every
+     * Claude tier; the static system block carries a cache_control breakpoint.
+     *
+     * @param array<string, mixed> $schema
+     * @return array<string, mixed>|WP_Error
+     */
+    private static function anthropic_extract(string $system, string $prompt, array $schema)
+    {
+        $response = wp_remote_post('https://api.anthropic.com/v1/messages', [
+            'timeout' => self::env_int('AI_EXTRACTION_TIMEOUT_SECONDS', 14, 4, 30),
+            'headers' => [
+                'x-api-key' => self::ai_extraction_api_key(),
+                'anthropic-version' => self::env('AI_ANTHROPIC_VERSION', '2023-06-01'),
+                'content-type' => 'application/json',
+            ],
+            'body' => wp_json_encode([
+                'model' => self::ai_extraction_model(),
+                'max_tokens' => self::env_int('AI_EXTRACTION_MAX_TOKENS', 1400, 300, 3000),
+                'system' => [[
+                    'type' => 'text',
+                    'text' => $system,
+                    'cache_control' => ['type' => 'ephemeral'],
+                ]],
+                'messages' => [
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'output_config' => [
+                    'format' => [
+                        'type' => 'json_schema',
+                        'schema' => $schema,
+                    ],
+                ],
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status = (int) wp_remote_retrieve_response_code($response);
+        $body = (string) wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+        if ($status < 200 || $status >= 300) {
+            $message = is_array($decoded) && is_array($decoded['error'] ?? null)
+                ? (string) ($decoded['error']['message'] ?? self::ui_text('Cererea Anthropic a esuat.', 'Anthropic request failed.'))
+                : sprintf(self::ui_text('Anthropic a raspuns cu eroarea HTTP %d.', 'Anthropic returned HTTP error %d.'), $status);
+            return new WP_Error('anthropic_http_error', $message);
+        }
+
+        if (is_array($decoded) && ($decoded['stop_reason'] ?? '') === 'refusal') {
+            return new WP_Error('anthropic_refusal', self::ui_text('Modelul AI a refuzat extragerea.', 'The AI model declined the extraction.'));
+        }
+
+        $content = '';
+        if (is_array($decoded) && is_array($decoded['content'] ?? null)) {
+            foreach ($decoded['content'] as $block) {
+                if (is_array($block) && ($block['type'] ?? '') === 'text') {
+                    $content .= (string) ($block['text'] ?? '');
+                }
+            }
+        }
+
+        $payload = self::decode_ai_json_object($content);
+        if (!is_array($payload)) {
+            return new WP_Error('anthropic_bad_json', self::ui_text('Modelul AI nu a returnat JSON valid.', 'The AI model did not return valid JSON.'));
+        }
+
+        return $payload;
+    }
+
+    /**
+     * JSON schema for Anthropic structured-output extraction.
+     *
+     * @return array<string, mixed>
+     */
+    private static function extraction_schema(string $kind): array
+    {
+        if ($kind === 'recipe') {
+            return [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'properties' => [
+                    'servings' => ['type' => 'string'],
+                    'prepMinutes' => ['type' => 'integer'],
+                    'cookMinutes' => ['type' => 'integer'],
+                    'totalMinutes' => ['type' => 'integer'],
+                    'ingredients' => ['type' => 'array', 'items' => ['type' => 'string']],
+                    'steps' => ['type' => 'array', 'items' => ['type' => 'string']],
+                ],
+                'required' => ['servings', 'prepMinutes', 'cookMinutes', 'totalMinutes', 'ingredients', 'steps'],
+            ];
+        }
+
+        return [
+            'type' => 'object',
+            'additionalProperties' => false,
+            'properties' => [
+                'summary' => ['type' => 'string'],
+                'metaDescription' => ['type' => 'string'],
+                'tags' => ['type' => 'array', 'items' => ['type' => 'string']],
+            ],
+            'required' => ['summary', 'metaDescription', 'tags'],
+        ];
     }
 
     private static function decode_ai_json_object(string $content): ?array
