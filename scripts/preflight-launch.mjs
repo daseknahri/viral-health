@@ -52,6 +52,10 @@ const checks = [
     label: 'Social Syndicator readiness',
     command: ['node', 'scripts/audit-social-syndicator-readiness.mjs'],
   },
+  {
+    label: 'PHP parse check',
+    command: ['node', 'scripts/lint-php.mjs'],
+  },
 ];
 
 if (liveUrl !== '') {
@@ -145,6 +149,7 @@ Default checks:
 - Pre-lander readiness
 - Histats readiness
 - Social Syndicator readiness
+- PHP parse check (skipped if no PHP runtime; set PHP_BIN to enable)
 
 With --live:
 - live Ezoic readiness
