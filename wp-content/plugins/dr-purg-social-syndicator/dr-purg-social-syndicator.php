@@ -19,6 +19,7 @@ final class Dr_Purg_Social_Syndicator
     private const QUEUE_SLUG = 'dr-purg-social-queue';
     private const EDITOR_SLUG = 'dr-purg-social-editor';
     private const SETTINGS_SLUG = 'dr-purg-social-settings';
+    private const PERF_SLUG = 'dr-purg-social-performance';
     private const REDIRECT_TRANSIENT_PREFIX = 'dpj_social_redirect_';
     private const STATUS_NEEDS = 'needs_social';
     private const STATUS_DRAFT = 'draft';
@@ -262,6 +263,15 @@ final class Dr_Purg_Social_Syndicator
             'manage_options',
             self::SETTINGS_SLUG,
             [self::class, 'render_settings_page']
+        );
+
+        add_submenu_page(
+            self::QUEUE_SLUG,
+            __('Social Performance', 'dr-purg-social-syndicator'),
+            __('Performance', 'dr-purg-social-syndicator'),
+            'edit_posts',
+            self::PERF_SLUG,
+            [self::class, 'render_performance_page']
         );
 
         add_submenu_page(
@@ -538,6 +548,8 @@ final class Dr_Purg_Social_Syndicator
         update_post_meta($post_id, '_dpj_social_local_overlay_enable', isset($_POST['local_overlay_enable']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_local_hint_enable', isset($_POST['local_hint_enable']) ? '1' : '0');
 
+        self::save_performance_fields($post_id);
+
         if (self::facebook_status($post_id) !== self::STATUS_POSTED) {
             update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_DRAFT);
         }
@@ -547,6 +559,37 @@ final class Dr_Purg_Social_Syndicator
         if (!in_array(self::platform_status($post_id, 'reddit'), [self::STATUS_POSTED, self::STATUS_SKIPPED], true)) {
             update_post_meta($post_id, '_dpj_social_reddit_status', self::STATUS_DRAFT);
         }
+    }
+
+    private static function save_performance_fields(int $post_id): void
+    {
+        $clicks = isset($_POST['perf_clicks']) ? trim((string) wp_unslash($_POST['perf_clicks'])) : '';
+        $rpm = isset($_POST['perf_rpm']) ? trim((string) wp_unslash($_POST['perf_rpm'])) : '';
+        $revenue = isset($_POST['perf_revenue']) ? trim((string) wp_unslash($_POST['perf_revenue'])) : '';
+        $notes = isset($_POST['perf_notes']) ? sanitize_textarea_field((string) wp_unslash($_POST['perf_notes'])) : '';
+
+        $clicks = $clicks === '' ? '' : (string) absint($clicks);
+        $rpm = self::sanitize_decimal($rpm);
+        $revenue = self::sanitize_decimal($revenue);
+
+        update_post_meta($post_id, '_dpj_social_perf_clicks', $clicks);
+        update_post_meta($post_id, '_dpj_social_perf_rpm', $rpm);
+        update_post_meta($post_id, '_dpj_social_perf_revenue', $revenue);
+        update_post_meta($post_id, '_dpj_social_perf_notes', $notes);
+
+        if ($clicks !== '' || $rpm !== '' || $revenue !== '' || $notes !== '') {
+            update_post_meta($post_id, '_dpj_social_perf_updated', gmdate('c'));
+        }
+    }
+
+    private static function sanitize_decimal(string $value): string
+    {
+        $value = trim(str_replace(',', '.', $value));
+        if ($value === '' || !is_numeric($value)) {
+            return '';
+        }
+
+        return number_format(max(0, (float) $value), 2, '.', '');
     }
 
     private static function ensure_social_package(int $post_id): void
@@ -724,6 +767,129 @@ final class Dr_Purg_Social_Syndicator
                 </div>
             <?php endforeach; ?>
         </section>
+        <?php
+    }
+
+    private static function render_performance_section(int $post_id): void
+    {
+        $hook = (string) get_post_meta($post_id, '_dpj_social_facebook_hook', true);
+        $campaign = sanitize_title((string) get_post_field('post_name', $post_id));
+        $posted_at = (string) get_post_meta($post_id, '_dpj_social_facebook_posted_at', true);
+        $clicks = (string) get_post_meta($post_id, '_dpj_social_perf_clicks', true);
+        $rpm = (string) get_post_meta($post_id, '_dpj_social_perf_rpm', true);
+        $revenue = (string) get_post_meta($post_id, '_dpj_social_perf_revenue', true);
+        $notes = (string) get_post_meta($post_id, '_dpj_social_perf_notes', true);
+        ?>
+        <section class="dpj-social-card dpj-performance" data-dpj-performance>
+            <h2><?php esc_html_e('Performance', 'dr-purg-social-syndicator'); ?></h2>
+            <p class="dpj-social-note"><?php esc_html_e('Record real results so you can compare which hooks earn clicks and revenue. Read clicks from Analytics by UTM campaign; enter RPM and revenue from your ad network once finalized.', 'dr-purg-social-syndicator'); ?></p>
+            <ul class="dpj-perf-context">
+                <li><strong><?php esc_html_e('Hook:', 'dr-purg-social-syndicator'); ?></strong> <?php echo esc_html($hook !== '' ? $hook : '—'); ?></li>
+                <li><strong><?php esc_html_e('UTM campaign:', 'dr-purg-social-syndicator'); ?></strong> <code><?php echo esc_html($campaign !== '' ? $campaign : (string) $post_id); ?></code></li>
+                <li><strong><?php esc_html_e('Facebook posted:', 'dr-purg-social-syndicator'); ?></strong> <?php echo esc_html($posted_at !== '' ? $posted_at : '—'); ?></li>
+            </ul>
+            <div class="dpj-perf-grid">
+                <label><?php esc_html_e('Clicks', 'dr-purg-social-syndicator'); ?>
+                    <input type="number" min="0" step="1" name="perf_clicks" value="<?php echo esc_attr($clicks); ?>">
+                </label>
+                <label><?php esc_html_e('RPM (USD / 1k)', 'dr-purg-social-syndicator'); ?>
+                    <input type="number" min="0" step="0.01" name="perf_rpm" value="<?php echo esc_attr($rpm); ?>">
+                </label>
+                <label><?php esc_html_e('Revenue (USD)', 'dr-purg-social-syndicator'); ?>
+                    <input type="number" min="0" step="0.01" name="perf_revenue" value="<?php echo esc_attr($revenue); ?>">
+                </label>
+            </div>
+            <?php self::render_textarea('perf_notes', __('Notes', 'dr-purg-social-syndicator'), $notes, 2, 'dpj-perf-notes'); ?>
+        </section>
+        <?php
+    }
+
+    public static function render_performance_page(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to view social performance.', 'dr-purg-social-syndicator'));
+        }
+
+        $posts = get_posts([
+            'post_type' => 'post',
+            'post_status' => ['publish', 'future'],
+            'posts_per_page' => 200,
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ]);
+
+        $rows = [];
+        $total_clicks = 0;
+        $total_revenue = 0.0;
+        foreach ($posts as $post) {
+            if (!$post instanceof WP_Post) {
+                continue;
+            }
+
+            $clicks = (string) get_post_meta($post->ID, '_dpj_social_perf_clicks', true);
+            $rpm = (string) get_post_meta($post->ID, '_dpj_social_perf_rpm', true);
+            $revenue = (string) get_post_meta($post->ID, '_dpj_social_perf_revenue', true);
+            $posted_at = (string) get_post_meta($post->ID, '_dpj_social_facebook_posted_at', true);
+            $hook = (string) get_post_meta($post->ID, '_dpj_social_facebook_hook', true);
+
+            // Only list posts with real social activity or recorded performance.
+            if ($posted_at === '' && $clicks === '' && $rpm === '' && $revenue === '') {
+                continue;
+            }
+
+            $total_clicks += (int) $clicks;
+            $total_revenue += (float) $revenue;
+            $rows[] = compact('post', 'clicks', 'rpm', 'revenue', 'posted_at', 'hook');
+        }
+
+        ?>
+        <div class="wrap dpj-social-wrap">
+            <h1><?php esc_html_e('Social Performance', 'dr-purg-social-syndicator'); ?></h1>
+            <?php self::render_notice_from_query(); ?>
+            <p><?php esc_html_e('Which hooks earned clicks and revenue. Read clicks from Analytics by UTM campaign; record RPM and finalized revenue per post in the Social Editor.', 'dr-purg-social-syndicator'); ?></p>
+            <p class="dpj-perf-summary">
+                <?php printf(
+                    /* translators: 1: post count, 2: total clicks, 3: total revenue. */
+                    esc_html__('Tracked posts: %1$d · Total clicks: %2$s · Total revenue: $%3$s', 'dr-purg-social-syndicator'),
+                    count($rows),
+                    esc_html(number_format_i18n($total_clicks)),
+                    esc_html(number_format($total_revenue, 2, '.', ''))
+                ); ?>
+            </p>
+            <table class="widefat striped dpj-social-table">
+                <thead>
+                    <tr>
+                        <th><?php esc_html_e('Post', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Hook', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('UTM campaign', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('FB posted', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Clicks', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('RPM', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Revenue', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Actions', 'dr-purg-social-syndicator'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($rows === []) : ?>
+                        <tr><td colspan="8"><?php esc_html_e('No posted or measured posts yet. Post to a platform, or record results in the Social Editor.', 'dr-purg-social-syndicator'); ?></td></tr>
+                    <?php endif; ?>
+                    <?php foreach ($rows as $row) :
+                        $campaign = sanitize_title((string) get_post_field('post_name', $row['post']->ID));
+                        ?>
+                        <tr>
+                            <td><strong><?php echo esc_html(get_the_title($row['post'])); ?></strong></td>
+                            <td><?php echo esc_html($row['hook'] !== '' ? $row['hook'] : '—'); ?></td>
+                            <td><code><?php echo esc_html($campaign !== '' ? $campaign : (string) $row['post']->ID); ?></code></td>
+                            <td><?php echo esc_html($row['posted_at'] !== '' ? $row['posted_at'] : '—'); ?></td>
+                            <td><?php echo esc_html($row['clicks'] !== '' ? $row['clicks'] : '—'); ?></td>
+                            <td><?php echo esc_html($row['rpm'] !== '' ? $row['rpm'] : '—'); ?></td>
+                            <td><?php echo esc_html($row['revenue'] !== '' ? '$' . $row['revenue'] : '—'); ?></td>
+                            <td><a class="button" href="<?php echo esc_url(self::editor_url($row['post']->ID)); ?>"><?php esc_html_e('Edit', 'dr-purg-social-syndicator'); ?></a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
         <?php
     }
 
@@ -1077,6 +1243,7 @@ final class Dr_Purg_Social_Syndicator
                 <?php self::render_pinterest_section($post_id); ?>
                 <?php self::render_reddit_section($post_id); ?>
                 <?php self::render_post_settings_section($post_id); ?>
+                <?php self::render_performance_section($post_id); ?>
 
                 <p class="submit dpj-social-submit">
                     <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="save"><?php esc_html_e('Save social draft', 'dr-purg-social-syndicator'); ?></button>

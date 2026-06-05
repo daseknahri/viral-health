@@ -39,11 +39,11 @@ Everything Claude produces remains **review-first**: it fills draft fields only;
 - Docs + `.env.example` + readiness-audit contract updated.
 - **Outcome:** the Social Editor's "AI Social Draft Assistant" and the author "Auto fill" can run on Claude with guaranteed-valid output.
 
-### Phase 2 — Measurement loop: UTM + performance log  (in progress)
+### Phase 2 — Measurement loop: UTM + performance log  ✅
 
-- ✅ **UTM tracking shipped** (`SOCIAL_UTM_ENABLE`): a "Tracked links" panel with per-platform UTM links + copy buttons, and auto-tagging of the Facebook first-comment link at post time (`utm_source`=platform, `utm_medium`=group/pin/social, `utm_campaign`=post slug, `utm_content` reserved for hook variants). Idempotent; off by default.
-- ⏳ **Next:** a `Performance` log (post meta + an admin list) capturing hook text, post URL, UTM, where/when posted, clicks, RPM, finalized revenue, notes — plus a weekly "which hooks won" view.
-- **Outcome:** closes the loop — once GA4 sees the UTMs, clicks attribute by source; the performance log then ties hooks to revenue. (Matches the handoff's "Known Safe Next Work.")
+- ✅ **UTM tracking** (`SOCIAL_UTM_ENABLE`): a "Tracked links" panel with per-platform UTM links + copy buttons, and auto-tagging of the Facebook first-comment link at post time (`utm_source`=platform, `utm_medium`=group/pin/social, `utm_campaign`=post slug, `utm_content` reserved for hook variants). Idempotent; off by default.
+- ✅ **Performance log**: a per-post `Performance` section in the Social Editor (clicks / RPM / revenue / notes, with hook + UTM campaign + FB posted date shown for context) and a `Social Queue -> Performance` overview that lists posted/measured posts with a totals line — the "which hooks won" view.
+- **Outcome:** the loop is closed — GA4 attributes clicks by UTM campaign, and the performance log ties each hook to clicks and revenue. (Matches the handoff's "Known Safe Next Work.") Manual entry for now; an automated GA4/ad-network pull is a later enhancement.
 
 ### Phase 3 — AI hook-variant generator
 

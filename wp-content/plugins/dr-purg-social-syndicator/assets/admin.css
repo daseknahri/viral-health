@@ -232,6 +232,38 @@
   min-width: 220px;
 }
 
+.dpj-perf-context {
+  margin: 6px 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.dpj-perf-context li {
+  margin: 2px 0;
+}
+
+.dpj-perf-grid {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.dpj-perf-grid label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  gap: 4px;
+}
+
+.dpj-perf-grid input {
+  width: 140px;
+}
+
+.dpj-perf-summary {
+  font-weight: 600;
+}
+
 .dpj-qa-crop {
   margin: 6px 0 0;
   padding-left: 18px;

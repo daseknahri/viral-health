@@ -215,6 +215,16 @@ function checkPluginContract() {
     /render_tracked_links_section/,
   ]);
 
+  requireIncludes('performance log contract', plugin, [
+    /render_performance_page/,
+    /render_performance_section/,
+    /save_performance_fields/,
+    /_dpj_social_perf_clicks/,
+    /_dpj_social_perf_revenue/,
+    /PERF_SLUG/,
+    /Social Performance/,
+  ]);
+
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
     /wp\.media/,
     /navigator\.clipboard/,

@@ -94,6 +94,18 @@ SOCIAL_UTM_REDDIT_MEDIUM=social
 
 When the flag is off, links are the plain canonical URL and nothing is rewritten, so the default behavior is unchanged.
 
+## Performance log
+
+`Social Queue -> Performance` is the "which hooks won" view. It lists every post that has been posted to a platform or has recorded results, with its hook, UTM campaign (the post slug), Facebook posted date, clicks, RPM, and revenue, plus a totals line.
+
+Record results per post in the Social Editor's `Performance` section:
+
+- **Clicks** — read from Analytics, filtered by the post's `utm_campaign` (its slug). Pair this with `SOCIAL_UTM_ENABLE=1` so the links are tagged.
+- **RPM (USD / 1k)** and **Revenue (USD)** — enter from your ad network once finalized.
+- **Notes** — anything worth remembering about the hook, image, or groups used.
+
+The section also shows the post's current hook, UTM campaign, and Facebook posted date for context. Nothing here is auto-pulled from ad networks yet; it is a manual, reviewed log so hook decisions are driven by real numbers instead of guesses.
+
 ## Social image converter
 
 The converter never edits the original featured image. It creates separate JPG attachments in the Media Library and assigns them back to the social package:
