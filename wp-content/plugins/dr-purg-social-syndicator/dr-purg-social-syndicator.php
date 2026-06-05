@@ -99,6 +99,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_pixazo_last_run',
             '_dpj_social_local_overlay_text',
             '_dpj_social_local_overlay_enable',
+            '_dpj_social_local_overlay_pos',
             '_dpj_social_local_hint_text',
             '_dpj_social_local_hint_enable',
             '_dpj_social_image_generation_last_error',
@@ -932,6 +933,7 @@ final class Dr_Purg_Social_Syndicator
         update_post_meta($post_id, '_dpj_social_redirect_after_publish', isset($_POST['redirect_after_publish']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_do_not_repost', isset($_POST['do_not_repost']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_local_overlay_enable', isset($_POST['local_overlay_enable']) ? '1' : '0');
+        update_post_meta($post_id, '_dpj_social_local_overlay_pos', self::sanitize_overlay_position(isset($_POST['local_overlay_pos']) ? (string) wp_unslash($_POST['local_overlay_pos']) : 'center'));
         update_post_meta($post_id, '_dpj_social_local_hint_enable', isset($_POST['local_hint_enable']) ? '1' : '0');
 
         self::save_performance_fields($post_id);
@@ -1200,6 +1202,7 @@ final class Dr_Purg_Social_Syndicator
         self::maybe_set_meta($post_id, '_dpj_social_pixazo_negative_prompt', self::default_pixazo_negative_prompt());
         self::maybe_set_meta($post_id, '_dpj_social_local_overlay_text', self::default_local_overlay_text($post_id));
         self::maybe_set_meta($post_id, '_dpj_social_local_overlay_enable', '1');
+        self::maybe_set_meta($post_id, '_dpj_social_local_overlay_pos', 'center');
         self::maybe_set_meta($post_id, '_dpj_social_local_hint_text', self::default_local_hint_text());
         self::maybe_set_meta($post_id, '_dpj_social_local_hint_enable', '0');
 
@@ -2239,6 +2242,16 @@ final class Dr_Purg_Social_Syndicator
                 <input type="checkbox" name="local_overlay_enable" value="1" <?php checked(get_post_meta($post_id, '_dpj_social_local_overlay_enable', true), '1'); ?>>
                 <?php esc_html_e('Add a short readable text overlay to the generated cards.', 'dr-purg-social-syndicator'); ?>
             </label>
+            <?php $current_pos = self::overlay_position($post_id); ?>
+            <label class="dpj-field dpj-overlay-pos">
+                <?php esc_html_e('Overlay position', 'dr-purg-social-syndicator'); ?>
+                <select name="local_overlay_pos">
+                    <?php foreach (self::overlay_positions() as $pos_option) : ?>
+                        <option value="<?php echo esc_attr($pos_option); ?>" <?php selected($current_pos, $pos_option); ?>><?php echo esc_html(self::overlay_position_label($pos_option)); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="dpj-social-note"><?php esc_html_e('Move the hook off a face or busy area. The contrast scrim follows the text.', 'dr-purg-social-syndicator'); ?></span>
+            </label>
             <div class="dpj-social-grid">
                 <?php self::render_input('local_hint_text', __('Bottom hint text', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_local_hint_text', true)); ?>
                 <label class="dpj-check dpj-check--inline">
@@ -3116,9 +3129,10 @@ final class Dr_Purg_Social_Syndicator
         $use_overlay = (string) get_post_meta($post_id, '_dpj_social_local_overlay_enable', true) === '1';
         $hint_text = self::local_hint_text($post_id);
         $use_hint = (string) get_post_meta($post_id, '_dpj_social_local_hint_enable', true) === '1';
+        $position = self::overlay_position($post_id);
         $generated = [];
         foreach (self::SOCIAL_IMAGE_VARIANTS as $variant => $config) {
-            $attachment_id = self::create_social_image_variant($post_id, $source_id, $source_path, $variant, $config, $overlay_text, $use_overlay, $hint_text, $use_hint);
+            $attachment_id = self::create_social_image_variant($post_id, $source_id, $source_path, $variant, $config, $overlay_text, $use_overlay, $hint_text, $use_hint, $position);
             if (is_wp_error($attachment_id)) {
                 update_post_meta($post_id, '_dpj_social_image_generation_last_error', $attachment_id->get_error_message());
                 return $attachment_id;
@@ -3141,7 +3155,7 @@ final class Dr_Purg_Social_Syndicator
         return $generated;
     }
 
-    private static function create_social_image_variant(int $post_id, int $source_id, string $source_path, string $variant, array $config, string $overlay_text, bool $use_overlay, string $hint_text, bool $use_hint)
+    private static function create_social_image_variant(int $post_id, int $source_id, string $source_path, string $variant, array $config, string $overlay_text, bool $use_overlay, string $hint_text, bool $use_hint, string $position = 'center')
     {
         $uploads = wp_upload_dir();
         if (!empty($uploads['error'])) {
@@ -3166,7 +3180,7 @@ final class Dr_Purg_Social_Syndicator
 
         $filename = wp_unique_filename($upload_dir, sprintf('%s-local-card-%s-%dx%d.jpg', $post_slug, sanitize_key($variant), $width, $height));
         $target_path = trailingslashit($upload_dir) . $filename;
-        $rendered = self::render_social_image_jpeg($source_path, $target_path, $width, $height, $overlay_text, $use_overlay, $variant, $hint_text, $use_hint);
+        $rendered = self::render_social_image_jpeg($source_path, $target_path, $width, $height, $overlay_text, $use_overlay, $variant, $hint_text, $use_hint, $position);
         if (is_wp_error($rendered)) {
             return $rendered;
         }
@@ -3204,8 +3218,9 @@ final class Dr_Purg_Social_Syndicator
         return $attachment_id;
     }
 
-    private static function render_social_image_jpeg(string $source_path, string $target_path, int $target_width, int $target_height, string $overlay_text = '', bool $use_overlay = true, string $variant = '', string $hint_text = '', bool $use_hint = false)
+    private static function render_social_image_jpeg(string $source_path, string $target_path, int $target_width, int $target_height, string $overlay_text = '', bool $use_overlay = true, string $variant = '', string $hint_text = '', bool $use_hint = false, string $position = 'center')
     {
+        $position = self::sanitize_overlay_position($position);
         if (!function_exists('imagecreatetruecolor')) {
             return new WP_Error('dpj_social_gd_missing', __('The PHP GD image extension is required to generate social image copies.', 'dr-purg-social-syndicator'));
         }
@@ -3248,7 +3263,7 @@ final class Dr_Purg_Social_Syndicator
         $scrim = self::card_scrim_strength();
         if ($scrim > 0.0) {
             if ($use_overlay && self::overlay_display_text(self::short_overlay_text($overlay_text)) !== '') {
-                self::draw_vertical_scrim($canvas, $target_width, $target_height, (int) round($target_height * 0.5), (int) round($target_height * 0.32), $scrim);
+                self::draw_vertical_scrim($canvas, $target_width, $target_height, self::overlay_scrim_peak($target_height, $position), (int) round($target_height * 0.32), $scrim);
             }
             if ($use_hint) {
                 self::draw_vertical_scrim($canvas, $target_width, $target_height, $target_height, (int) round($target_height * 0.16), min(0.6, $scrim + 0.08));
@@ -3256,7 +3271,7 @@ final class Dr_Purg_Social_Syndicator
         }
 
         if ($use_overlay) {
-            self::draw_social_overlay($canvas, $overlay_text, $target_width, $target_height, $variant);
+            self::draw_social_overlay($canvas, $overlay_text, $target_width, $target_height, $variant, $position);
         }
         if ($use_hint) {
             self::draw_bottom_hint($canvas, $hint_text, $target_width, $target_height);
@@ -3494,6 +3509,71 @@ final class Dr_Purg_Social_Syndicator
     }
 
     /**
+     * @return array<int, string>
+     */
+    private static function overlay_positions(): array
+    {
+        return ['top', 'center', 'bottom'];
+    }
+
+    private static function sanitize_overlay_position(string $position): string
+    {
+        $position = sanitize_key($position);
+        return in_array($position, self::overlay_positions(), true) ? $position : 'center';
+    }
+
+    private static function overlay_position(int $post_id): string
+    {
+        return self::sanitize_overlay_position((string) get_post_meta($post_id, '_dpj_social_local_overlay_pos', true));
+    }
+
+    private static function overlay_position_label(string $position): string
+    {
+        $labels = [
+            'top' => __('Top', 'dr-purg-social-syndicator'),
+            'center' => __('Center', 'dr-purg-social-syndicator'),
+            'bottom' => __('Bottom', 'dr-purg-social-syndicator'),
+        ];
+
+        return $labels[$position] ?? $labels['center'];
+    }
+
+    /**
+     * Vertical start (top y) of the overlay text block for the chosen position.
+     * Center keeps the original behavior; top/bottom anchor to a margin, and
+     * bottom leaves extra room so the headline clears the bottom-hint band.
+     */
+    private static function overlay_block_top(int $target_height, int $block_height, string $position): int
+    {
+        $margin = max(48, (int) round($target_height * 0.06));
+        if ($position === 'top') {
+            return $margin;
+        }
+        if ($position === 'bottom') {
+            $bottom_margin = max($margin, (int) round($target_height * 0.10));
+            return max($margin, $target_height - $block_height - $bottom_margin);
+        }
+
+        return (int) floor(($target_height - $block_height) / 2);
+    }
+
+    /**
+     * Vertical center of the contrast scrim band for the chosen overlay position,
+     * so the scrim tracks the text instead of always sitting in the middle.
+     */
+    private static function overlay_scrim_peak(int $target_height, string $position): int
+    {
+        if ($position === 'top') {
+            return (int) round($target_height * 0.24);
+        }
+        if ($position === 'bottom') {
+            return (int) round($target_height * 0.72);
+        }
+
+        return (int) round($target_height * 0.5);
+    }
+
+    /**
      * Peak darkness (0.0–0.6) of the text contrast scrim. SOCIAL_CARD_SCRIM is a
      * percent (0 disables; default 28). The gradient feathers to fully
      * transparent at the band edges, so this is the strongest point only.
@@ -3559,21 +3639,22 @@ final class Dr_Purg_Social_Syndicator
         imagecopyresampled($canvas, $source, 0, 0, $source_x, $source_y, $target_width, $target_height, $crop_width, $crop_height);
     }
 
-    private static function draw_social_overlay($canvas, string $text, int $target_width, int $target_height, string $variant): void
+    private static function draw_social_overlay($canvas, string $text, int $target_width, int $target_height, string $variant, string $position = 'center'): void
     {
         $headline = self::overlay_display_text(self::short_overlay_text($text));
         if ($headline === '') {
             return;
         }
 
+        $position = self::sanitize_overlay_position($position);
         $bold_font = self::font_path(true);
         $regular_font = self::font_path(false);
         if ($bold_font !== '' && function_exists('imagettftext') && function_exists('imagettfbbox')) {
-            self::draw_ttf_social_text($canvas, $headline, $target_width, $target_height, $variant, $bold_font, $regular_font !== '' ? $regular_font : $bold_font);
+            self::draw_ttf_social_text($canvas, $headline, $target_width, $target_height, $variant, $bold_font, $regular_font !== '' ? $regular_font : $bold_font, $position);
             return;
         }
 
-        self::draw_fallback_social_text($canvas, $headline, $target_width, $target_height, $variant);
+        self::draw_fallback_social_text($canvas, $headline, $target_width, $target_height, $variant, $position);
     }
 
     private static function draw_bottom_hint($canvas, string $text, int $target_width, int $target_height): void
@@ -3636,7 +3717,7 @@ final class Dr_Purg_Social_Syndicator
         return function_exists('mb_strtoupper') ? mb_strtoupper($headline, 'UTF-8') : strtoupper($headline);
     }
 
-    private static function draw_ttf_social_text($canvas, string $headline, int $target_width, int $target_height, string $variant, string $bold_font, string $regular_font): void
+    private static function draw_ttf_social_text($canvas, string $headline, int $target_width, int $target_height, string $variant, string $bold_font, string $regular_font, string $position = 'center'): void
     {
         $margin = max(46, (int) round($target_width * 0.068));
         $max_width = max(120, $target_width - ($margin * 2));
@@ -3662,7 +3743,7 @@ final class Dr_Purg_Social_Syndicator
         $accent_gap = max(24, (int) round($headline_size * 0.28));
         $accent_height = max(8, (int) round($target_height * 0.008));
         $block_height = $brand_size + $brand_gap + (count($lines) * $line_height) + $accent_gap + $accent_height;
-        $brand_baseline = max($brand_size + 16, (int) floor(($target_height - $block_height) / 2) + $brand_size);
+        $brand_baseline = max($brand_size + 16, self::overlay_block_top($target_height, $block_height, $position) + $brand_size);
 
         self::draw_centered_ttf_text($canvas, 'DR PURG JR.', $regular_font, $brand_size, $brand_baseline, $target_width, $sage !== false ? $sage : $white, $outline, $shadow, 2);
 
@@ -3829,7 +3910,7 @@ final class Dr_Purg_Social_Syndicator
         return abs((int) $box[2] - (int) $box[0]);
     }
 
-    private static function draw_fallback_social_text($canvas, string $headline, int $target_width, int $target_height, string $variant): void
+    private static function draw_fallback_social_text($canvas, string $headline, int $target_width, int $target_height, string $variant, string $position = 'center'): void
     {
         $margin = max(46, (int) round($target_width * 0.066));
         $font = 5;
@@ -3845,7 +3926,7 @@ final class Dr_Purg_Social_Syndicator
         $accent_gap = max(24, (int) round($headline_height * 0.30));
         $accent_height = max(8, (int) round($target_height * 0.008));
         $block_height = $brand_height + $brand_gap + (count($lines) * $headline_height) + ((count($lines) - 1) * $line_gap) + $accent_gap + $accent_height;
-        $y = max(24, (int) floor(($target_height - $block_height) / 2));
+        $y = max(24, self::overlay_block_top($target_height, $block_height, $position));
 
         self::draw_centered_scaled_string($canvas, 'DR PURG JR.', $font, $y, $brand_scale, $target_width, [213, 232, 224, 0], [0, 0, 0, 26], [92, 17, 48, 48], max(2, (int) round($brand_scale * 0.7)));
 
