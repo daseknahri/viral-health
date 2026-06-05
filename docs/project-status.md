@@ -64,6 +64,7 @@ For live deploy checks, temporarily set `KEPOLI_DEPLOY_FINGERPRINT=1`, redeploy,
 - `docs/future-session-handoff.md`: complete continuation guide for future sessions.
 - `docs/growth-engine-roadmap.md`: phased build plan for content, distribution, Claude AI, and monetization (with the no-fraud / no-ToS-evasion guardrails). All five phases shipped.
 - `docs/operator-playbook.md`: the daily/weekly operating loop (Calendar → write → package → post → log → measure) plus the curiosity-hook writing principles for clicks.
+- `docs/go-live-setup.md`: one checklist to turn on each Social Syndicator feature (AI, UTM, cards, FB posting/scheduling, Pinterest API, performance CSV/GA4) — env vars, tokens, and live tests.
 - `docs/content-machine-extraction-map.md`: article, image, social, and ad workflow map.
 - `docs/ai-content-growth-strategy.md`: future AI, content, Facebook, SEO, and monetization direction.
 - `docs/site-brief-dr-purg-jr.md`: launch brief, audience, content guardrails, and ad strategy for this clone.
