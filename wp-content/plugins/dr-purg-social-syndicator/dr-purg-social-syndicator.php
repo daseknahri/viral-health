@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.4.0
+ * Version: 0.6.0
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.5.0';
+    private const VERSION = '0.6.0';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
