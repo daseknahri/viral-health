@@ -61,6 +61,10 @@ Everything Claude produces remains **review-first**: it fills draft fields only;
 - ✅ `Social Queue -> Calendar`: an idea backlog plus an AI brainstormer. `Generate ideas` (optional theme/seed) asks Claude for `SOCIAL_AI_CALENDAR_IDEAS` curiosity-led, guardrail-safe topics (title + angle + hook seed + rationale), sending recent post titles so it does not repeat covered topics. Ideas can also be added manually. Each idea is scheduled with a date and moved through `Idea → Planned → Drafted → Published`, with notes and delete. Ideas live in a plugin option (`dpj_social_calendar`), separate from posts, since they exist before an article does.
 - **Outcome:** a steady, planned pipeline feeding the whole funnel — ideation is no longer ad-hoc, and topics are reviewed before any writing starts. Reviewed-only: the calendar proposes and tracks; writing and publishing stay human.
 
+## Running it day to day
+
+With all five phases shipped, the engine is operated through one repeatable loop: `Calendar → Write → Package → Post → Log → Measure → back to Calendar`. The step-by-step daily and weekly routine, plus the curiosity-hook writing principles that turn group reach into clicks, live in `docs/operator-playbook.md`.
+
 ## Monetization ladder (parallel, not a code phase)
 
 1. Real volume + clean GA4 (Site Kit already installed).
