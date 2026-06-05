@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.6.0
+ * Version: 0.6.1
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.6.0';
+    private const VERSION = '0.6.1';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -142,6 +142,7 @@ final class Dr_Purg_Social_Syndicator
         add_action('admin_menu', [self::class, 'register_admin_pages']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_admin_assets']);
         add_action('admin_init', [self::class, 'handle_admin_actions']);
+        add_action('add_meta_boxes', [self::class, 'register_image_prompt_metabox']);
         add_action('wp_ajax_dpj_social_card_preview', [self::class, 'ajax_card_preview']);
         add_action('transition_post_status', [self::class, 'handle_post_transition'], 10, 3);
         add_filter('redirect_post_location', [self::class, 'maybe_redirect_after_publish'], 10, 2);
@@ -331,7 +332,15 @@ final class Dr_Purg_Social_Syndicator
         $page = isset($_GET['page']) ? sanitize_key(wp_unslash((string) $_GET['page'])) : '';
         $is_social_page = in_array($page, [self::QUEUE_SLUG, self::EDITOR_SLUG, self::SETTINGS_SLUG, self::COCKPIT_SLUG, self::PERF_SLUG, self::CALENDAR_SLUG, self::IMPORT_SLUG], true);
 
-        if (!$is_social_page) {
+        // Also load on the post editor so the "Featured image prompt" meta box can
+        // use the copy button.
+        $is_post_editor = in_array($hook, ['post.php', 'post-new.php'], true);
+        if ($is_post_editor) {
+            $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+            $is_post_editor = $screen instanceof WP_Screen && $screen->post_type === 'post';
+        }
+
+        if (!$is_social_page && !$is_post_editor) {
             return;
         }
 
@@ -359,6 +368,32 @@ final class Dr_Purg_Social_Syndicator
                 'failed' => __('Preview failed. Save the post if you just changed the image, then try again.', 'dr-purg-social-syndicator'),
             ]);
         }
+    }
+
+    public static function register_image_prompt_metabox(): void
+    {
+        add_meta_box(
+            'dpj_social_image_prompt',
+            __('Featured image prompt', 'dr-purg-social-syndicator'),
+            [self::class, 'render_image_prompt_metabox'],
+            'post',
+            'side',
+            'default'
+        );
+    }
+
+    public static function render_image_prompt_metabox(WP_Post $post): void
+    {
+        $prompt = (string) get_post_meta($post->ID, '_dpj_social_image_prompt', true);
+        if ($prompt === '') {
+            echo '<p class="dpj-social-note">' . esc_html__('No image prompt yet. Import a Claude bundle that includes an "image_prompt" to fill this.', 'dr-purg-social-syndicator') . '</p>';
+            return;
+        }
+        ?>
+        <p><?php esc_html_e('Copy this into your image generator (e.g. Gemini), make a portrait image, then set it as the featured image.', 'dr-purg-social-syndicator'); ?></p>
+        <textarea readonly rows="6" id="dpj-image-prompt" class="widefat code"><?php echo esc_textarea($prompt); ?></textarea>
+        <p><button type="button" class="button" data-dpj-copy="#dpj-image-prompt"><?php esc_html_e('Copy image prompt', 'dr-purg-social-syndicator'); ?></button></p>
+        <?php
     }
 
     public static function add_post_row_action(array $actions, WP_Post $post): array
@@ -779,6 +814,11 @@ final class Dr_Purg_Social_Syndicator
         $image_alt = self::clean_ai_text((string) ($bundle['image_alt'] ?? ''), 160);
         if ($image_alt !== '') {
             update_post_meta($post_id, '_kepoli_image_plan_alt', $image_alt);
+        }
+
+        $image_prompt = self::clean_ai_text((string) ($bundle['image_prompt'] ?? ''), 1500);
+        if ($image_prompt !== '') {
+            update_post_meta($post_id, '_dpj_social_image_prompt', $image_prompt);
         }
 
         // Social creative fields. URL/link fields (facebook first comment, links,
@@ -2007,6 +2047,7 @@ final class Dr_Purg_Social_Syndicator
   "category": "...",
   "tags": ["...", "..."],
   "image_alt": "...",
+  "image_prompt": "... (ready-to-paste Gemini prompt for a portrait photo)",
   "content_html": "&lt;p&gt;...&lt;/p&gt;&lt;h2&gt;...&lt;/h2&gt; (article body only)",
   "facebook_hook": "...",
   "facebook_summary": "...",

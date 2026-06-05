@@ -287,6 +287,9 @@ function checkPluginContract() {
     /content_html/,
     /_kepoli_meta_description/,
     /New from Claude/,
+    /render_image_prompt_metabox/,
+    /_dpj_social_image_prompt/,
+    /image_prompt/,
   ]);
 
   requireIncludes('content calendar contract', plugin, [

@@ -326,6 +326,7 @@ OUTPUT — return ONLY a single JSON object, nothing before or after it. No comm
   "category": "one broad category, e.g. Body Signals / Habits / Nutrition / Sleep",
   "tags": ["3 to 6 short relevant tags"],
   "image_alt": "plain description of a fitting photo, under 125 characters",
+  "image_prompt": "a complete, ready-to-paste prompt for an image generator (e.g. Gemini) that produces a click-worthy PORTRAIT photo matching the hook: human-centered and relatable, calm and trustworthy (never scary, graphic, medical-procedure, or before/after), soft natural daylight, shallow depth of field, modern cozy home setting with subtle sage-green and muted-burgundy accents. End the prompt with exactly: Portrait orientation, 4:5, high resolution. No text, no words, no logos, no watermark. Natural, undistorted hands and faces.",
   "content_html": "<p>Curiosity intro that starts paying off immediately.</p><h2>...</h2><p>...</p><ul><li>...</li></ul><h2>When to talk to a professional</h2><p>calm, general, non-diagnostic note</p><h2>The bottom line</h2><p>calm wrap-up</p>",
   "facebook_hook": "curiosity hook, under 95 characters, no URL",
   "facebook_summary": "exactly 2 sentences, 180-260 characters, NO URL, don't say 'click the link'",
