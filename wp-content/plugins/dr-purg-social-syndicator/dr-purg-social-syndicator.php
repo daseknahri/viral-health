@@ -28,6 +28,7 @@ final class Dr_Purg_Social_Syndicator
     private const STATUS_NEEDS = 'needs_social';
     private const STATUS_DRAFT = 'draft';
     private const STATUS_POSTED = 'posted';
+    private const STATUS_SCHEDULED = 'scheduled';
     private const STATUS_FAILED = 'failed';
     private const STATUS_SKIPPED = 'skipped';
     private const OVERLAY_WORD_MAX = 12;
@@ -92,6 +93,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_facebook_comment_id',
             '_dpj_social_facebook_last_error',
             '_dpj_social_facebook_posted_at',
+            '_dpj_social_facebook_scheduled_at',
             '_dpj_social_generated_facebook_media_id',
             '_dpj_social_pixazo_prompt',
             '_dpj_social_pixazo_negative_prompt',
@@ -499,6 +501,19 @@ final class Dr_Purg_Social_Syndicator
         if ($action === 'post_facebook') {
             $result = self::post_to_facebook($post_id);
             $notice = is_wp_error($result) ? 'facebook_failed' : 'facebook_posted';
+        } elseif ($action === 'schedule_facebook') {
+            $timestamp = self::parse_schedule_timestamp(isset($_POST['facebook_schedule']) ? sanitize_text_field(wp_unslash((string) $_POST['facebook_schedule'])) : '');
+            if ($timestamp <= 0) {
+                update_post_meta($post_id, '_dpj_social_facebook_last_error', __('Enter a valid schedule date and time.', 'dr-purg-social-syndicator'));
+                update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_FAILED);
+                $notice = 'schedule_failed';
+            } else {
+                $result = self::post_to_facebook($post_id, $timestamp);
+                $notice = is_wp_error($result) ? 'schedule_failed' : 'scheduled';
+            }
+        } elseif ($action === 'post_facebook_comment') {
+            $result = self::post_facebook_comment($post_id);
+            $notice = is_wp_error($result) ? 'comment_failed' : 'comment_posted';
         } elseif ($action === 'reset_facebook') {
             self::reset_facebook($post_id);
             $notice = 'facebook_reset';
@@ -1819,6 +1834,7 @@ final class Dr_Purg_Social_Syndicator
             self::STATUS_NEEDS => __('Needs social', 'dr-purg-social-syndicator'),
             self::STATUS_DRAFT => __('Draft', 'dr-purg-social-syndicator'),
             self::STATUS_POSTED => __('Posted', 'dr-purg-social-syndicator'),
+            self::STATUS_SCHEDULED => __('Scheduled', 'dr-purg-social-syndicator'),
             self::STATUS_FAILED => __('Failed', 'dr-purg-social-syndicator'),
             self::STATUS_SKIPPED => __('Skipped', 'dr-purg-social-syndicator'),
         ][$status] ?? __('Needs social', 'dr-purg-social-syndicator');
@@ -1827,7 +1843,7 @@ final class Dr_Purg_Social_Syndicator
     private static function platform_status(int $post_id, string $platform): string
     {
         $status = (string) get_post_meta($post_id, '_dpj_social_' . $platform . '_status', true);
-        return in_array($status, [self::STATUS_NEEDS, self::STATUS_DRAFT, self::STATUS_POSTED, self::STATUS_FAILED, self::STATUS_SKIPPED], true)
+        return in_array($status, [self::STATUS_NEEDS, self::STATUS_DRAFT, self::STATUS_POSTED, self::STATUS_SCHEDULED, self::STATUS_FAILED, self::STATUS_SKIPPED], true)
             ? $status
             : self::STATUS_NEEDS;
     }
@@ -1855,6 +1871,10 @@ final class Dr_Purg_Social_Syndicator
             'facebook_posted' => __('Facebook post sent and logged.', 'dr-purg-social-syndicator'),
             'facebook_failed' => __('Facebook posting failed. Review the error in the Facebook section.', 'dr-purg-social-syndicator'),
             'facebook_reset' => __('Facebook posting lock reset. You can post this package again.', 'dr-purg-social-syndicator'),
+            'scheduled' => __('Facebook post scheduled. Add the link first comment after it goes live.', 'dr-purg-social-syndicator'),
+            'schedule_failed' => __('Facebook scheduling failed. Review the error in the Facebook section.', 'dr-purg-social-syndicator'),
+            'comment_posted' => __('First comment posted to Facebook.', 'dr-purg-social-syndicator'),
+            'comment_failed' => __('First comment failed. Review the error in the Facebook section.', 'dr-purg-social-syndicator'),
             'ai_draft_generated' => __('AI social draft generated. Review every field before posting.', 'dr-purg-social-syndicator'),
             'ai_draft_failed' => __('AI social draft failed. Review the assistant message.', 'dr-purg-social-syndicator'),
             'hook_variants_generated' => __('Hook variants generated. Apply one and copy its tracked link.', 'dr-purg-social-syndicator'),
@@ -2408,6 +2428,25 @@ final class Dr_Purg_Social_Syndicator
                 <button class="button" type="button" data-dpj-copy="#dpj-facebook-summary"><?php esc_html_e('Copy summary', 'dr-purg-social-syndicator'); ?></button>
                 <button class="button" type="button" data-dpj-copy="#dpj-facebook-first-comment"><?php esc_html_e('Copy first comment', 'dr-purg-social-syndicator'); ?></button>
             </p>
+            <?php $scheduled_at = (string) get_post_meta($post_id, '_dpj_social_facebook_scheduled_at', true); ?>
+            <div class="dpj-fb-schedule">
+                <?php if ($scheduled_at !== '') : ?>
+                    <p class="dpj-social-note"><?php printf(
+                        /* translators: %s is an ISO 8601 UTC timestamp. */
+                        esc_html__('Scheduled to publish at %s UTC. Facebook publishes it automatically. After it goes live, click "Post first comment" to add the tracked link.', 'dr-purg-social-syndicator'),
+                        esc_html($scheduled_at)
+                    ); ?></p>
+                <?php endif; ?>
+                <label class="dpj-field">
+                    <?php esc_html_e('Schedule for (your site time)', 'dr-purg-social-syndicator'); ?>
+                    <input type="datetime-local" name="facebook_schedule" value="">
+                </label>
+                <p class="dpj-platform__actions">
+                    <button class="button" type="submit" name="dpj_social_editor_action" value="schedule_facebook"><?php esc_html_e('Schedule Facebook post', 'dr-purg-social-syndicator'); ?></button>
+                    <button class="button" type="submit" name="dpj_social_editor_action" value="post_facebook_comment"><?php esc_html_e('Post first comment', 'dr-purg-social-syndicator'); ?></button>
+                </p>
+                <p class="dpj-social-note"><?php esc_html_e('Scheduling publishes to your Facebook Page only (10 minutes to 75 days ahead); group posts stay manual. The link first comment is not added to a scheduled post until it goes live — use "Post first comment" after it publishes.', 'dr-purg-social-syndicator'); ?></p>
+            </div>
         </section>
         <?php
     }
@@ -4288,7 +4327,7 @@ final class Dr_Purg_Social_Syndicator
         return implode("\n\n", $parts);
     }
 
-    private static function post_to_facebook(int $post_id)
+    private static function post_to_facebook(int $post_id, int $scheduled_time = 0)
     {
         $remote_id = trim((string) get_post_meta($post_id, '_dpj_social_facebook_remote_post_id', true));
         $do_not_repost = (string) get_post_meta($post_id, '_dpj_social_do_not_repost', true) !== '0';
@@ -4317,6 +4356,22 @@ final class Dr_Purg_Social_Syndicator
             return new WP_Error('dpj_social_empty_message', $error);
         }
 
+        if ($scheduled_time > 0) {
+            $now = time();
+            if ($scheduled_time < $now + 600) {
+                $error = __('Schedule the Facebook post at least 10 minutes in the future.', 'dr-purg-social-syndicator');
+                update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+                update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_FAILED);
+                return new WP_Error('dpj_social_schedule_too_soon', $error);
+            }
+            if ($scheduled_time > $now + (75 * DAY_IN_SECONDS)) {
+                $error = __('Facebook allows scheduling up to 75 days ahead.', 'dr-purg-social-syndicator');
+                update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+                update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_FAILED);
+                return new WP_Error('dpj_social_schedule_too_far', $error);
+            }
+        }
+
         $facebook_link = trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true));
         $first_comment = trim((string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true));
         if ($first_comment === '' && $facebook_link !== '') {
@@ -4329,16 +4384,24 @@ final class Dr_Purg_Social_Syndicator
         $graph_version = self::clean_graph_version((string) $settings['facebook_graph_version']);
         $base = 'https://graph.facebook.com/' . rawurlencode($graph_version) . '/' . rawurlencode($page_id);
 
+        $is_scheduled = $scheduled_time > 0;
         if ($image_url !== '') {
-            $result = self::facebook_request($base . '/photos', [
+            $photo_body = [
                 'url' => $image_url,
                 'caption' => $message,
-                'published' => 'true',
-            ], $settings);
+                'published' => $is_scheduled ? 'false' : 'true',
+            ];
+            if ($is_scheduled) {
+                $photo_body['scheduled_publish_time'] = (string) $scheduled_time;
+            }
+            $result = self::facebook_request($base . '/photos', $photo_body, $settings);
         } else {
-            $result = self::facebook_request($base . '/feed', [
-                'message' => $message,
-            ], $settings);
+            $feed_body = ['message' => $message];
+            if ($is_scheduled) {
+                $feed_body['published'] = 'false';
+                $feed_body['scheduled_publish_time'] = (string) $scheduled_time;
+            }
+            $result = self::facebook_request($base . '/feed', $feed_body, $settings);
         }
 
         if (is_wp_error($result)) {
@@ -4351,9 +4414,21 @@ final class Dr_Purg_Social_Syndicator
         $post_remote_id = isset($result['post_id']) ? sanitize_text_field((string) $result['post_id']) : $photo_id;
         update_post_meta($post_id, '_dpj_social_facebook_remote_post_id', $post_remote_id);
         update_post_meta($post_id, '_dpj_social_facebook_remote_photo_id', $photo_id);
+        delete_post_meta($post_id, '_dpj_social_facebook_last_error');
+
+        // A scheduled (unpublished) post cannot receive a comment yet, so the
+        // link first comment is deferred — the operator posts it after the post
+        // goes live via "Post first comment".
+        if ($is_scheduled) {
+            update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_SCHEDULED);
+            update_post_meta($post_id, '_dpj_social_facebook_scheduled_at', gmdate('c', $scheduled_time));
+            delete_post_meta($post_id, '_dpj_social_facebook_posted_at');
+            return $result;
+        }
+
         update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_POSTED);
         update_post_meta($post_id, '_dpj_social_facebook_posted_at', gmdate('c'));
-        delete_post_meta($post_id, '_dpj_social_facebook_last_error');
+        delete_post_meta($post_id, '_dpj_social_facebook_scheduled_at');
 
         $first_comment = self::apply_utm_to_text($first_comment, $post_id, 'facebook', self::selected_variant($post_id));
         if ($first_comment !== '' && $post_remote_id !== '') {
@@ -4372,6 +4447,89 @@ final class Dr_Purg_Social_Syndicator
         }
 
         return $result;
+    }
+
+    /**
+     * Post the reviewed first comment (with the tracked link) onto an existing
+     * Facebook post. Used after a scheduled post goes live, or to retry a comment
+     * that failed during immediate posting. Refuses if there is no post yet or a
+     * comment was already recorded.
+     *
+     * @return array<string, mixed>|WP_Error
+     */
+    private static function post_facebook_comment(int $post_id)
+    {
+        $remote_id = trim((string) get_post_meta($post_id, '_dpj_social_facebook_remote_post_id', true));
+        if ($remote_id === '') {
+            $error = __('Post to or schedule Facebook first; there is no post to comment on yet.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+            return new WP_Error('dpj_social_no_remote_post', $error);
+        }
+
+        if ((string) get_post_meta($post_id, '_dpj_social_facebook_comment_id', true) !== '') {
+            $error = __('A first comment was already posted for this article.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+            return new WP_Error('dpj_social_comment_exists', $error);
+        }
+
+        $settings = self::settings();
+        $page_id = trim((string) $settings['facebook_page_id']);
+        $token = trim((string) $settings['facebook_page_access_token']);
+        if ($page_id === '' || $token === '') {
+            $error = __('Facebook Page ID and Page Access Token are required in Social Settings.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+            return new WP_Error('dpj_social_missing_credentials', $error);
+        }
+
+        $facebook_link = trim((string) get_post_meta($post_id, '_dpj_social_facebook_link', true));
+        $first_comment = trim((string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true));
+        if ($first_comment === '' && $facebook_link !== '') {
+            $first_comment = self::default_facebook_first_comment($facebook_link);
+        }
+        if ($first_comment === '') {
+            $error = __('There is no first comment text to post.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $error);
+            return new WP_Error('dpj_social_empty_comment', $error);
+        }
+
+        $first_comment = self::apply_utm_to_text($first_comment, $post_id, 'facebook', self::selected_variant($post_id));
+        $graph_version = self::clean_graph_version((string) $settings['facebook_graph_version']);
+        $result = self::facebook_request(
+            'https://graph.facebook.com/' . rawurlencode($graph_version) . '/' . rawurlencode($remote_id) . '/comments',
+            ['message' => $first_comment],
+            $settings
+        );
+
+        if (is_wp_error($result)) {
+            update_post_meta($post_id, '_dpj_social_facebook_last_error', $result->get_error_message());
+            return $result;
+        }
+
+        if (isset($result['id'])) {
+            update_post_meta($post_id, '_dpj_social_facebook_comment_id', sanitize_text_field((string) $result['id']));
+        }
+        delete_post_meta($post_id, '_dpj_social_facebook_last_error');
+
+        return $result;
+    }
+
+    /**
+     * Convert a datetime-local value (site timezone) to a Unix timestamp.
+     * Returns 0 when empty or unparseable.
+     */
+    private static function parse_schedule_timestamp(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+
+        try {
+            $dt = new DateTimeImmutable($value, wp_timezone());
+            return $dt->getTimestamp();
+        } catch (Exception $e) {
+            return 0;
+        }
     }
 
     private static function facebook_request(string $endpoint, array $body, array $settings)
@@ -4418,6 +4576,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_facebook_comment_id',
             '_dpj_social_facebook_last_error',
             '_dpj_social_facebook_posted_at',
+            '_dpj_social_facebook_scheduled_at',
         ] as $key) {
             delete_post_meta($post_id, $key);
         }

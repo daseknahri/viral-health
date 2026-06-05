@@ -120,6 +120,11 @@ function checkPluginContract() {
     /appsecret_proof/,
     /wp_remote_post/,
     /Reset Facebook posting lock/,
+    /scheduled_publish_time/,
+    /post_facebook_comment/,
+    /parse_schedule_timestamp/,
+    /_dpj_social_facebook_scheduled_at/,
+    /Schedule Facebook post/,
   ]);
 
   requireIncludes('AI social draft contract', plugin, [

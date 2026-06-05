@@ -58,6 +58,12 @@ Read the full article here: Article URL
 
 If a social image is selected, the plugin posts through the Page photos endpoint using the selected image URL and caption. If no image is selected, it falls back to the Page feed endpoint with the reviewed text only. The first comment is posted after the Page post is created when the token has comment permission.
 
+### Scheduling Facebook Page posts
+
+The Facebook section can also schedule the post instead of publishing it now. Pick a date and time under `Schedule for (your site time)` and click `Schedule Facebook post`. The plugin sends the post to the Page with `published=false` and `scheduled_publish_time`, so Facebook publishes it automatically at that time. Facebook only allows scheduling between **10 minutes and 75 days** ahead; the plugin validates that range. The status becomes `Scheduled` and the scheduled time is shown.
+
+Scheduling applies to your **Facebook Page only** — this is the official Graph API. Group posting stays manual, as before. One Facebook limitation matters: you cannot comment on a post that has not been published yet, so the **link first comment is not added to a scheduled post automatically**. After the post goes live, open it in the Social Editor and click `Post first comment` to add the tracked link (this button also works as a retry if the comment failed during an immediate post). The duplicate-posting lock applies to scheduled posts too; use `Reset Facebook posting lock` if you need to reschedule.
+
 ## AI social draft assistant
 
 The Social Editor includes an optional `AI Social Draft Assistant`. It sends controlled source material to OpenRouter: article title, excerpt, categories, tags, featured image alt text, canonical URL, and a capped amount of article body text.
