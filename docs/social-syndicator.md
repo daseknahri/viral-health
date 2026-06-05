@@ -94,6 +94,17 @@ SOCIAL_UTM_REDDIT_MEDIUM=social
 
 When the flag is off, links are the plain canonical URL and nothing is rewritten, so the default behavior is unchanged.
 
+## Posting cockpit
+
+`Social Queue -> Cockpit` is the daily driver for manual posting. It lists every packaged, non-skipped post as a card with everything needed to post in seconds:
+
+- the **caption** (hook + summary) and the **first comment** (with the tracked link applied) in copy-ready boxes;
+- a **tracked link** field and the assigned **image**;
+- copy buttons for each, plus an `Open editor` link;
+- a **posting log**: type a group or destination name and click `Mark posted` to record where and when you posted. The log keeps the most recent 50 entries per post.
+
+The cockpit deliberately does not post for you. You paste into Facebook (or another platform) yourself; the cockpit only removes the preparation work and keeps a record. This keeps the workflow inside platform rules — no automation posts to groups on your behalf.
+
 ## AI hook variants
 
 The Social Editor's `AI hook variants` section generates several distinct Facebook hook angles for one article so you can A/B test them. Click `Generate hook variants` (needs the AI provider enabled, same as the draft assistant). The model returns `SOCIAL_AI_HOOK_VARIANTS` options (default 4, range 2–8), each with:

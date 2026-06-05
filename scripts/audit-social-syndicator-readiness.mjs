@@ -236,6 +236,16 @@ function checkPluginContract() {
     /utm_content|social_utm_url/,
   ]);
 
+  requireIncludes('posting cockpit contract', plugin, [
+    /render_cockpit_page/,
+    /handle_cockpit_post/,
+    /add_posting_log_entry/,
+    /_dpj_social_posting_log/,
+    /COCKPIT_SLUG/,
+    /dpj_cockpit_action/,
+    /Posting Cockpit/,
+  ]);
+
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
     /wp\.media/,
     /navigator\.clipboard/,

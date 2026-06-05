@@ -50,11 +50,11 @@ Everything Claude produces remains **review-first**: it fills draft fields only;
 - ✅ `AI hook variants` section: one AI call returns N distinct hook angles (`SOCIAL_AI_HOOK_VARIANTS`, default 4), each with an overlay version and a `v1..vN` `utm_content` tag. `Apply to Facebook` sets the hook + overlay and marks the selected variant; the selected tag flows into the posted Facebook first-comment link, and each variant shows a copyable tracked link.
 - **Outcome:** systematic hook testing instead of one-shot copy — the variants feed Phase 2's tracking, so the Performance table can compare angles. (One call returns all variants, which is cheaper than N separate calls; prompt caching stays available for future per-variant expansion.)
 
-### Phase 4 — Posting cockpit (ToS-safe automation)
+### Phase 4 — Posting cockpit (ToS-safe automation)  ✅
 
-- A WP-admin "today's queue": each row shows the exact caption, first-comment text, image, the UTM link, one-click copy buttons, and a "Mark posted to [group] at [time]" logger.
-- Official scheduling where allowed (Meta Business Suite for the Page; Pinterest API; the existing newsletter as an owned channel).
-- **Outcome:** posting becomes a 5-second paste per group; preparation is automated, publishing stays human.
+- ✅ `Social Queue -> Cockpit`: a card per packaged post with the caption, the tracked first comment, the tracked link, and the image — all copy-ready — plus a "Mark posted to [group] at [time]" log (keeps the last 50 entries). Publishing stays a manual human action; only the prep is automated.
+- ⏳ **Optional later:** official scheduling where allowed (Meta Business Suite for the Page; Pinterest API; the existing newsletter as an owned channel).
+- **Outcome:** posting becomes a few-second paste per destination; preparation is automated, publishing stays human and inside platform rules.
 
 ### Phase 5 — Content calendar + AI ideation
 

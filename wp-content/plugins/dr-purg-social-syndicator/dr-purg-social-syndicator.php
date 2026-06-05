@@ -20,6 +20,7 @@ final class Dr_Purg_Social_Syndicator
     private const EDITOR_SLUG = 'dr-purg-social-editor';
     private const SETTINGS_SLUG = 'dr-purg-social-settings';
     private const PERF_SLUG = 'dr-purg-social-performance';
+    private const COCKPIT_SLUG = 'dr-purg-social-cockpit';
     private const REDIRECT_TRANSIENT_PREFIX = 'dpj_social_redirect_';
     private const STATUS_NEEDS = 'needs_social';
     private const STATUS_DRAFT = 'draft';
@@ -258,6 +259,15 @@ final class Dr_Purg_Social_Syndicator
 
         add_submenu_page(
             self::QUEUE_SLUG,
+            __('Posting Cockpit', 'dr-purg-social-syndicator'),
+            __('Cockpit', 'dr-purg-social-syndicator'),
+            'edit_posts',
+            self::COCKPIT_SLUG,
+            [self::class, 'render_cockpit_page']
+        );
+
+        add_submenu_page(
+            self::QUEUE_SLUG,
             __('Social Settings', 'dr-purg-social-syndicator'),
             __('Settings', 'dr-purg-social-syndicator'),
             'manage_options',
@@ -409,6 +419,11 @@ final class Dr_Purg_Social_Syndicator
             return;
         }
 
+        if (isset($_POST['dpj_cockpit_action'])) {
+            self::handle_cockpit_post();
+            return;
+        }
+
         if (isset($_POST['dpj_social_settings_action'])) {
             self::handle_settings_post();
         }
@@ -492,6 +507,53 @@ final class Dr_Purg_Social_Syndicator
 
         wp_safe_redirect(self::editor_url($post_id, ['dpj_social_notice' => $notice]));
         exit;
+    }
+
+    private static function handle_cockpit_post(): void
+    {
+        $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
+        $post = get_post($post_id);
+        if (!self::post_type_is_supported($post) || !current_user_can('edit_post', $post_id)) {
+            wp_die(esc_html__('You do not have permission to update this posting log.', 'dr-purg-social-syndicator'));
+        }
+
+        check_admin_referer('dpj_social_cockpit_' . $post_id, 'dpj_social_cockpit_nonce');
+
+        $action = sanitize_key(wp_unslash((string) $_POST['dpj_cockpit_action']));
+        if ($action === 'log_posted') {
+            $target = isset($_POST['posting_target']) ? sanitize_text_field(wp_unslash((string) $_POST['posting_target'])) : '';
+            self::add_posting_log_entry($post_id, $target);
+        }
+
+        wp_safe_redirect(add_query_arg(['page' => self::COCKPIT_SLUG, 'dpj_social_notice' => 'posting_logged'], admin_url('admin.php')));
+        exit;
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    private static function posting_log(int $post_id): array
+    {
+        $raw = (string) get_post_meta($post_id, '_dpj_social_posting_log', true);
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private static function add_posting_log_entry(int $post_id, string $target): void
+    {
+        $target = trim($target);
+        if ($target === '') {
+            $target = __('Facebook', 'dr-purg-social-syndicator');
+        }
+
+        $log = self::posting_log($post_id);
+        array_unshift($log, ['target' => $target, 'time' => gmdate('c')]);
+        $log = array_slice($log, 0, 50);
+        update_post_meta($post_id, '_dpj_social_posting_log', wp_json_encode($log));
     }
 
     private static function save_editor_fields(int $post_id): void
@@ -1008,6 +1070,110 @@ final class Dr_Purg_Social_Syndicator
         <?php
     }
 
+    public static function render_cockpit_page(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to view the posting cockpit.', 'dr-purg-social-syndicator'));
+        }
+
+        $posts = get_posts([
+            'post_type' => 'post',
+            'post_status' => ['publish', 'future'],
+            'posts_per_page' => 50,
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ]);
+
+        $cards = [];
+        foreach ($posts as $post) {
+            if (!$post instanceof WP_Post) {
+                continue;
+            }
+            if ((string) get_post_meta($post->ID, '_dpj_social_skip', true) === '1') {
+                continue;
+            }
+            if ((string) get_post_meta($post->ID, '_dpj_social_facebook_hook', true) === '') {
+                continue;
+            }
+            $cards[] = $post;
+        }
+
+        ?>
+        <div class="wrap dpj-social-wrap dpj-cockpit">
+            <h1><?php esc_html_e('Posting Cockpit', 'dr-purg-social-syndicator'); ?></h1>
+            <?php self::render_notice_from_query(); ?>
+            <p><?php esc_html_e('Everything you need to post each article in seconds: copy the caption and first comment, grab the image, then log where and when you posted. You post manually — this only removes the prep work.', 'dr-purg-social-syndicator'); ?></p>
+            <?php if ($cards === []) : ?>
+                <p><em><?php esc_html_e('No packaged posts yet. Build a social package in the Social Editor first.', 'dr-purg-social-syndicator'); ?></em></p>
+            <?php endif; ?>
+            <?php foreach ($cards as $post) :
+                $post_id = $post->ID;
+                $caption = self::facebook_message($post_id);
+                $first_comment = (string) get_post_meta($post_id, '_dpj_social_facebook_first_comment', true);
+                if ($first_comment === '') {
+                    $first_comment = self::default_facebook_first_comment(get_permalink($post_id) ?: '');
+                }
+                $first_comment = self::apply_utm_to_text($first_comment, $post_id, 'facebook', self::selected_variant($post_id));
+                $tracked = self::social_utm_url($post_id, 'facebook', self::selected_variant($post_id));
+                $media_id = (int) get_post_meta($post_id, '_dpj_social_facebook_media_id', true);
+                if ($media_id <= 0) {
+                    $media_id = (int) get_post_thumbnail_id($post_id);
+                }
+                $image = $media_id > 0 ? wp_get_attachment_image($media_id, 'medium', false, ['class' => 'dpj-cockpit-image']) : '';
+                $log = self::posting_log($post_id);
+                $fb_status = self::status_label(self::platform_status($post_id, 'facebook'));
+                ?>
+                <section class="dpj-social-card dpj-cockpit-card">
+                    <header class="dpj-cockpit-card__head">
+                        <h2><?php echo esc_html(get_the_title($post)); ?></h2>
+                        <span class="dpj-cockpit-status"><?php echo esc_html(sprintf(/* translators: %s is the Facebook status. */ __('Facebook: %s', 'dr-purg-social-syndicator'), $fb_status)); ?></span>
+                    </header>
+                    <div class="dpj-cockpit-body">
+                        <?php if ($image !== '') : ?>
+                            <div class="dpj-cockpit-media"><?php echo wp_kses_post($image); ?></div>
+                        <?php endif; ?>
+                        <div class="dpj-cockpit-fields">
+                            <label><?php esc_html_e('Caption', 'dr-purg-social-syndicator'); ?>
+                                <textarea readonly rows="4" id="dpj-cockpit-caption-<?php echo (int) $post_id; ?>"><?php echo esc_textarea($caption); ?></textarea>
+                            </label>
+                            <p><button class="button" type="button" data-dpj-copy="#dpj-cockpit-caption-<?php echo (int) $post_id; ?>"><?php esc_html_e('Copy caption', 'dr-purg-social-syndicator'); ?></button></p>
+                            <label><?php esc_html_e('First comment', 'dr-purg-social-syndicator'); ?>
+                                <textarea readonly rows="3" id="dpj-cockpit-comment-<?php echo (int) $post_id; ?>"><?php echo esc_textarea($first_comment); ?></textarea>
+                            </label>
+                            <p><button class="button" type="button" data-dpj-copy="#dpj-cockpit-comment-<?php echo (int) $post_id; ?>"><?php esc_html_e('Copy first comment', 'dr-purg-social-syndicator'); ?></button></p>
+                            <label><?php esc_html_e('Tracked link', 'dr-purg-social-syndicator'); ?>
+                                <input type="text" readonly id="dpj-cockpit-link-<?php echo (int) $post_id; ?>" value="<?php echo esc_attr($tracked); ?>">
+                            </label>
+                            <p>
+                                <button class="button" type="button" data-dpj-copy="#dpj-cockpit-link-<?php echo (int) $post_id; ?>"><?php esc_html_e('Copy link', 'dr-purg-social-syndicator'); ?></button>
+                                <a class="button" href="<?php echo esc_url(self::editor_url($post_id)); ?>"><?php esc_html_e('Open editor', 'dr-purg-social-syndicator'); ?></a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="dpj-cockpit-log">
+                        <h3><?php esc_html_e('Posting log', 'dr-purg-social-syndicator'); ?></h3>
+                        <?php if ($log === []) : ?>
+                            <p><em><?php esc_html_e('Not posted anywhere yet.', 'dr-purg-social-syndicator'); ?></em></p>
+                        <?php else : ?>
+                            <ul>
+                                <?php foreach ($log as $entry) : ?>
+                                    <li><strong><?php echo esc_html((string) ($entry['target'] ?? '')); ?></strong> — <?php echo esc_html((string) ($entry['time'] ?? '')); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                        <form method="post" action="<?php echo esc_url(add_query_arg(['page' => self::COCKPIT_SLUG], admin_url('admin.php'))); ?>" class="dpj-cockpit-log-form">
+                            <?php wp_nonce_field('dpj_social_cockpit_' . $post_id, 'dpj_social_cockpit_nonce'); ?>
+                            <input type="hidden" name="post_id" value="<?php echo (int) $post_id; ?>">
+                            <input type="text" name="posting_target" placeholder="<?php esc_attr_e('Group or destination', 'dr-purg-social-syndicator'); ?>">
+                            <button class="button button-primary" type="submit" name="dpj_cockpit_action" value="log_posted"><?php esc_html_e('Mark posted', 'dr-purg-social-syndicator'); ?></button>
+                        </form>
+                    </div>
+                </section>
+            <?php endforeach; ?>
+        </div>
+        <?php
+    }
+
     public static function render_performance_page(): void
     {
         if (!self::can_manage()) {
@@ -1231,6 +1397,7 @@ final class Dr_Purg_Social_Syndicator
             'hook_variants_generated' => __('Hook variants generated. Apply one and copy its tracked link.', 'dr-purg-social-syndicator'),
             'hook_variants_failed' => __('Hook variant generation failed. Review the assistant message.', 'dr-purg-social-syndicator'),
             'hook_variant_applied' => __('Hook variant applied to the Facebook hook and overlay.', 'dr-purg-social-syndicator'),
+            'posting_logged' => __('Posting logged.', 'dr-purg-social-syndicator'),
             'images_generated' => __('Local social cards generated and assigned.', 'dr-purg-social-syndicator'),
             'images_failed' => __('Social image generation failed. Review the converter message.', 'dr-purg-social-syndicator'),
             'pixazo_generated' => __('Pixazo images generated and assigned.', 'dr-purg-social-syndicator'),

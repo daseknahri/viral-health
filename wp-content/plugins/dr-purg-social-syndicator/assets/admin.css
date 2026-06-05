@@ -302,6 +302,64 @@
   margin: 6px 0;
 }
 
+.dpj-cockpit-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dpj-cockpit-status {
+  color: #646970;
+  font-weight: 600;
+}
+
+.dpj-cockpit-body {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dpj-cockpit-media {
+  flex: 0 0 220px;
+}
+
+.dpj-cockpit-image {
+  max-width: 220px;
+  height: auto;
+  border-radius: 4px;
+}
+
+.dpj-cockpit-fields {
+  flex: 1 1 360px;
+  min-width: 280px;
+}
+
+.dpj-cockpit-fields textarea,
+.dpj-cockpit-fields input {
+  width: 100%;
+}
+
+.dpj-cockpit-fields label {
+  display: block;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.dpj-cockpit-log {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #dcdcde;
+}
+
+.dpj-cockpit-log-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .dpj-qa-crop {
   margin: 6px 0 0;
   padding-left: 18px;
