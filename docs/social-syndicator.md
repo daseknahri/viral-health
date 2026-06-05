@@ -94,6 +94,17 @@ SOCIAL_UTM_REDDIT_MEDIUM=social
 
 When the flag is off, links are the plain canonical URL and nothing is rewritten, so the default behavior is unchanged.
 
+## AI hook variants
+
+The Social Editor's `AI hook variants` section generates several distinct Facebook hook angles for one article so you can A/B test them. Click `Generate hook variants` (needs the AI provider enabled, same as the draft assistant). The model returns `SOCIAL_AI_HOOK_VARIANTS` options (default 4, range 2–8), each with:
+
+- a short **angle** label (curiosity gap, surprising number, common mistake, body signal, myth correction, …);
+- a **hook** (under ~95 characters);
+- an **overlay** version (5–9 words) for the image card;
+- a `utm_content` tag (`v1`, `v2`, …).
+
+`Apply to Facebook` copies a variant's hook into the Facebook hook field and its overlay into the overlay text, and marks it as the selected variant. When `SOCIAL_UTM_ENABLE=1`, the selected variant's `utm_content` tag is then carried into the Facebook first-comment link at post time, and each variant shows a copyable tracked link. That makes the `Performance` table able to compare which angle earned the clicks. All variants are drafts for review — nothing is posted automatically.
+
 ## Performance log
 
 `Social Queue -> Performance` is the "which hooks won" view. It lists every post that has been posted to a platform or has recorded results, with its hook, UTM campaign (the post slug), Facebook posted date, clicks, RPM, and revenue, plus a totals line.

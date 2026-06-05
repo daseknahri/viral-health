@@ -464,6 +464,12 @@ final class Dr_Purg_Social_Syndicator
         } elseif ($action === 'generate_ai_social_draft') {
             $result = self::generate_ai_social_draft($post_id);
             $notice = is_wp_error($result) ? 'ai_draft_failed' : 'ai_draft_generated';
+        } elseif ($action === 'generate_hook_variants') {
+            $result = self::generate_hook_variants($post_id);
+            $notice = is_wp_error($result) ? 'hook_variants_failed' : 'hook_variants_generated';
+        } elseif (strpos($action, 'apply_hook_variant_') === 0) {
+            $applied = self::apply_hook_variant($post_id, (int) substr($action, strlen('apply_hook_variant_')));
+            $notice = $applied ? 'hook_variant_applied' : 'saved';
         } elseif ($action === 'generate_social_images') {
             $result = self::generate_social_images_for_post($post_id);
             $notice = is_wp_error($result) ? 'images_failed' : 'images_generated';
@@ -590,6 +596,204 @@ final class Dr_Purg_Social_Syndicator
         }
 
         return number_format(max(0, (float) $value), 2, '.', '');
+    }
+
+    private static function hook_variant_count(): int
+    {
+        return self::env_int('SOCIAL_AI_HOOK_VARIANTS', 4, 2, 8);
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    private static function hook_variants(int $post_id): array
+    {
+        $raw = (string) get_post_meta($post_id, '_dpj_social_hook_variants', true);
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private static function selected_variant(int $post_id): string
+    {
+        return (string) get_post_meta($post_id, '_dpj_social_selected_variant', true);
+    }
+
+    /**
+     * Generate several distinct Facebook hook angles (with overlay text) for A/B
+     * testing. Each is tagged v1..vN for utm_content so the performance log can
+     * tell them apart. Reviewed-only: this fills draft variants, never posts.
+     *
+     * @return true|WP_Error
+     */
+    private static function generate_hook_variants(int $post_id)
+    {
+        if (!self::social_ai_enabled()) {
+            $error = __('AI is not enabled. Set SOCIAL_AI_ENABLE=1, SOCIAL_AI_PROVIDER=openrouter or anthropic, and the matching API key.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_ai_last_error', $error);
+            return new WP_Error('dpj_social_ai_disabled', $error);
+        }
+
+        $count = self::hook_variant_count();
+        $system = 'You are a careful social copy editor for a responsible health publication. Return only valid JSON. Write curiosity-led but calm hooks. Never diagnose, promise cures, invent facts, or use fear-mongering medical claims.';
+        $payload = self::social_ai_complete($system, self::ai_hook_variants_prompt($post_id, $count), self::ai_hook_variants_schema());
+        if (is_wp_error($payload)) {
+            update_post_meta($post_id, '_dpj_social_ai_last_error', $payload->get_error_message());
+            return $payload;
+        }
+
+        $raw = isset($payload['variants']) && is_array($payload['variants']) ? $payload['variants'] : [];
+        $variants = [];
+        foreach ($raw as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $hook = self::clean_ai_text((string) ($item['hook'] ?? ''), 120);
+            if ($hook === '') {
+                continue;
+            }
+            $variants[] = [
+                'content' => 'v' . (count($variants) + 1),
+                'angle' => self::clean_ai_text((string) ($item['angle'] ?? ''), 60),
+                'hook' => $hook,
+                'overlay' => self::clean_ai_text((string) ($item['overlay'] ?? ''), 90),
+            ];
+            if (count($variants) >= $count) {
+                break;
+            }
+        }
+
+        if ($variants === []) {
+            $error = __('The AI did not return any usable hook variants.', 'dr-purg-social-syndicator');
+            update_post_meta($post_id, '_dpj_social_ai_last_error', $error);
+            return new WP_Error('dpj_social_ai_no_variants', $error);
+        }
+
+        update_post_meta($post_id, '_dpj_social_hook_variants', wp_json_encode($variants));
+        update_post_meta($post_id, '_dpj_social_hook_variants_run', gmdate('c'));
+        update_post_meta($post_id, '_dpj_social_ai_model', self::social_ai_model());
+        delete_post_meta($post_id, '_dpj_social_ai_last_error');
+
+        return true;
+    }
+
+    private static function apply_hook_variant(int $post_id, int $index): bool
+    {
+        $variants = self::hook_variants($post_id);
+        if (!isset($variants[$index]) || !is_array($variants[$index])) {
+            return false;
+        }
+
+        $variant = $variants[$index];
+        update_post_meta($post_id, '_dpj_social_facebook_hook', (string) ($variant['hook'] ?? ''));
+        if (!empty($variant['overlay'])) {
+            update_post_meta($post_id, '_dpj_social_local_overlay_text', (string) $variant['overlay']);
+        }
+        update_post_meta($post_id, '_dpj_social_selected_variant', (string) ($variant['content'] ?? ''));
+
+        return true;
+    }
+
+    private static function ai_hook_variants_prompt(int $post_id, int $count): string
+    {
+        $title = get_the_title($post_id);
+        $intro = self::source_intro($post_id);
+        $categories = implode(', ', wp_get_post_categories($post_id, ['fields' => 'names']));
+        $post = get_post($post_id);
+        $content = $post instanceof WP_Post ? self::ai_source_text((string) $post->post_content) : '';
+
+        return trim(
+            "Write {$count} DISTINCT Facebook hook options for this health-facts article, for curiosity-led but responsible distribution to US mobile readers.\n"
+            . "Return ONLY valid JSON, no markdown.\n"
+            . "Shape: {\"variants\":[{\"angle\":\"short label for the angle\",\"hook\":\"curiosity hook under 95 characters\",\"overlay\":\"on-image version, 5-9 words\"}]}\n\n"
+            . "Rules:\n"
+            . "- Each variant must take a genuinely different angle (for example: curiosity gap, surprising number, common mistake, body signal, myth correction).\n"
+            . "- Hooks are clickable but calm: no fake urgency, no diagnosis, no cure promise, no invented facts.\n"
+            . "- overlay is a short on-image version of the hook.\n"
+            . "- General health information only.\n\n"
+            . "Article title: {$title}\n"
+            . "Intro/excerpt: {$intro}\n"
+            . "Categories: {$categories}\n\n"
+            . "Article content:\n{$content}"
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ai_hook_variants_schema(): array
+    {
+        return [
+            'type' => 'object',
+            'additionalProperties' => false,
+            'properties' => [
+                'variants' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'additionalProperties' => false,
+                        'properties' => [
+                            'angle' => ['type' => 'string'],
+                            'hook' => ['type' => 'string'],
+                            'overlay' => ['type' => 'string'],
+                        ],
+                        'required' => ['angle', 'hook', 'overlay'],
+                    ],
+                ],
+            ],
+            'required' => ['variants'],
+        ];
+    }
+
+    private static function render_hook_variants_section(int $post_id): void
+    {
+        $enabled = self::social_ai_enabled();
+        $variants = self::hook_variants($post_id);
+        $selected = self::selected_variant($post_id);
+        ?>
+        <section class="dpj-social-card dpj-hook-variants" data-dpj-hook-variants>
+            <header class="dpj-platform__header">
+                <h2><?php esc_html_e('AI hook variants', 'dr-purg-social-syndicator'); ?></h2>
+                <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="generate_hook_variants" <?php disabled(!$enabled); ?>><?php esc_html_e('Generate hook variants', 'dr-purg-social-syndicator'); ?></button>
+            </header>
+            <?php if (!$enabled) : ?>
+                <div class="notice notice-warning inline"><p><?php esc_html_e('Set SOCIAL_AI_ENABLE=1, SOCIAL_AI_PROVIDER=openrouter or anthropic, and the matching API key to generate variants.', 'dr-purg-social-syndicator'); ?></p></div>
+            <?php endif; ?>
+            <p class="dpj-social-note"><?php esc_html_e('Generate several hook angles to A/B test. Apply one to the Facebook hook and overlay, then copy its tracked link to post. Each variant carries a utm_content tag (v1, v2, …) so the Performance log can tell them apart.', 'dr-purg-social-syndicator'); ?></p>
+            <?php if ($variants === []) : ?>
+                <p><em><?php esc_html_e('No variants yet. Generate some to compare angles.', 'dr-purg-social-syndicator'); ?></em></p>
+            <?php else : ?>
+                <ol class="dpj-variant-list">
+                    <?php foreach ($variants as $index => $variant) :
+                        $content_tag = (string) ($variant['content'] ?? ('v' . ((int) $index + 1)));
+                        $is_selected = $selected !== '' && $selected === $content_tag;
+                        $tracked = self::social_utm_url($post_id, 'facebook', $content_tag);
+                        $field_id = 'dpj-variant-link-' . (int) $index;
+                        ?>
+                        <li class="dpj-variant <?php echo $is_selected ? 'dpj-variant--selected' : ''; ?>">
+                            <p class="dpj-variant__meta"><strong><?php echo esc_html($content_tag); ?></strong> · <?php echo esc_html((string) ($variant['angle'] ?? '')); ?></p>
+                            <p class="dpj-variant__hook"><?php echo esc_html((string) ($variant['hook'] ?? '')); ?></p>
+                            <?php if (!empty($variant['overlay'])) : ?>
+                                <p class="dpj-variant__overlay"><?php esc_html_e('Overlay:', 'dr-purg-social-syndicator'); ?> <?php echo esc_html((string) $variant['overlay']); ?></p>
+                            <?php endif; ?>
+                            <?php if ($tracked !== '') : ?>
+                                <input type="text" readonly id="<?php echo esc_attr($field_id); ?>" value="<?php echo esc_attr($tracked); ?>">
+                            <?php endif; ?>
+                            <p class="dpj-variant__actions">
+                                <button class="button button-primary" type="submit" name="dpj_social_editor_action" value="apply_hook_variant_<?php echo (int) $index; ?>"><?php echo $is_selected ? esc_html__('Applied', 'dr-purg-social-syndicator') : esc_html__('Apply to Facebook', 'dr-purg-social-syndicator'); ?></button>
+                                <?php if ($tracked !== '') : ?>
+                                    <button class="button" type="button" data-dpj-copy="#<?php echo esc_attr($field_id); ?>"><?php esc_html_e('Copy tracked link', 'dr-purg-social-syndicator'); ?></button>
+                                <?php endif; ?>
+                            </p>
+                        </li>
+                    <?php endforeach; ?>
+                </ol>
+            <?php endif; ?>
+        </section>
+        <?php
     }
 
     private static function ensure_social_package(int $post_id): void
@@ -1024,6 +1228,9 @@ final class Dr_Purg_Social_Syndicator
             'facebook_reset' => __('Facebook posting lock reset. You can post this package again.', 'dr-purg-social-syndicator'),
             'ai_draft_generated' => __('AI social draft generated. Review every field before posting.', 'dr-purg-social-syndicator'),
             'ai_draft_failed' => __('AI social draft failed. Review the assistant message.', 'dr-purg-social-syndicator'),
+            'hook_variants_generated' => __('Hook variants generated. Apply one and copy its tracked link.', 'dr-purg-social-syndicator'),
+            'hook_variants_failed' => __('Hook variant generation failed. Review the assistant message.', 'dr-purg-social-syndicator'),
+            'hook_variant_applied' => __('Hook variant applied to the Facebook hook and overlay.', 'dr-purg-social-syndicator'),
             'images_generated' => __('Local social cards generated and assigned.', 'dr-purg-social-syndicator'),
             'images_failed' => __('Social image generation failed. Review the converter message.', 'dr-purg-social-syndicator'),
             'pixazo_generated' => __('Pixazo images generated and assigned.', 'dr-purg-social-syndicator'),
@@ -1237,6 +1444,7 @@ final class Dr_Purg_Social_Syndicator
                 <?php self::render_source_section($source); ?>
                 <?php self::render_tracked_links_section($post_id); ?>
                 <?php self::render_ai_social_draft_section($post_id); ?>
+                <?php self::render_hook_variants_section($post_id); ?>
                 <?php self::render_pixazo_section($post_id); ?>
                 <?php self::render_social_image_converter_section($post_id); ?>
                 <?php self::render_facebook_section($post_id); ?>
@@ -3225,7 +3433,7 @@ final class Dr_Purg_Social_Syndicator
         update_post_meta($post_id, '_dpj_social_facebook_posted_at', gmdate('c'));
         delete_post_meta($post_id, '_dpj_social_facebook_last_error');
 
-        $first_comment = self::apply_utm_to_text($first_comment, $post_id, 'facebook');
+        $first_comment = self::apply_utm_to_text($first_comment, $post_id, 'facebook', self::selected_variant($post_id));
         if ($first_comment !== '' && $post_remote_id !== '') {
             $comment_result = self::facebook_request('https://graph.facebook.com/' . rawurlencode($graph_version) . '/' . rawurlencode($post_remote_id) . '/comments', [
                 'message' => $first_comment,

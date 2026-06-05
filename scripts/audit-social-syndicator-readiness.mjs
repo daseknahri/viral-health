@@ -225,6 +225,17 @@ function checkPluginContract() {
     /Social Performance/,
   ]);
 
+  requireIncludes('hook variants contract', plugin, [
+    /generate_hook_variants/,
+    /apply_hook_variant/,
+    /render_hook_variants_section/,
+    /ai_hook_variants_schema/,
+    /_dpj_social_hook_variants/,
+    /selected_variant/,
+    /SOCIAL_AI_HOOK_VARIANTS/,
+    /utm_content|social_utm_url/,
+  ]);
+
   requireIncludes('admin assets', adminJs + '\n' + adminCss, [
     /wp\.media/,
     /navigator\.clipboard/,

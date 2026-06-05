@@ -45,11 +45,10 @@ Everything Claude produces remains **review-first**: it fills draft fields only;
 - ✅ **Performance log**: a per-post `Performance` section in the Social Editor (clicks / RPM / revenue / notes, with hook + UTM campaign + FB posted date shown for context) and a `Social Queue -> Performance` overview that lists posted/measured posts with a totals line — the "which hooks won" view.
 - **Outcome:** the loop is closed — GA4 attributes clicks by UTM campaign, and the performance log ties each hook to clicks and revenue. (Matches the handoff's "Known Safe Next Work.") Manual entry for now; an automated GA4/ad-network pull is a later enhancement.
 
-### Phase 3 — AI hook-variant generator
+### Phase 3 — AI hook-variant generator  ✅
 
-- Extend the Claude social drafter to return **N hook/overlay variants** per post (prompt-cached on the shared article prefix, so variants are cheap).
-- Each variant carries a `utm_content` tag, feeding Phase 2's tracking → real A/B data.
-- **Outcome:** systematic hook testing instead of one-shot copy.
+- ✅ `AI hook variants` section: one AI call returns N distinct hook angles (`SOCIAL_AI_HOOK_VARIANTS`, default 4), each with an overlay version and a `v1..vN` `utm_content` tag. `Apply to Facebook` sets the hook + overlay and marks the selected variant; the selected tag flows into the posted Facebook first-comment link, and each variant shows a copyable tracked link.
+- **Outcome:** systematic hook testing instead of one-shot copy — the variants feed Phase 2's tracking, so the Performance table can compare angles. (One call returns all variants, which is cheaper than N separate calls; prompt caching stays available for future per-variant expansion.)
 
 ### Phase 4 — Posting cockpit (ToS-safe automation)
 
