@@ -159,6 +159,8 @@ function checkPluginContract() {
     /overlay_position/,
     /overlay_block_top/,
     /_dpj_social_local_overlay_pos/,
+    /crop_focus_factor/,
+    /_dpj_social_local_crop_focus/,
     /ajax_card_preview/,
     /wp_ajax_dpj_social_card_preview/,
     /wp_send_json_success/,

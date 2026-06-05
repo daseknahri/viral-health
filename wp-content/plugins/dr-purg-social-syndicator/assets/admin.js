@@ -122,6 +122,7 @@
       overlay_text: value('#dpj-local-overlay-text'),
       overlay_enable: checked('input[name="local_overlay_enable"]'),
       overlay_pos: value('select[name="local_overlay_pos"]'),
+      crop_focus: value('select[name="local_crop_focus"]'),
       hint_text: value('input[name="local_hint_text"]'),
       hint_enable: checked('input[name="local_hint_enable"]')
     }).done(function (response) {

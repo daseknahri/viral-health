@@ -100,6 +100,7 @@ final class Dr_Purg_Social_Syndicator
             '_dpj_social_local_overlay_text',
             '_dpj_social_local_overlay_enable',
             '_dpj_social_local_overlay_pos',
+            '_dpj_social_local_crop_focus',
             '_dpj_social_local_hint_text',
             '_dpj_social_local_hint_enable',
             '_dpj_social_image_generation_last_error',
@@ -941,6 +942,7 @@ final class Dr_Purg_Social_Syndicator
         update_post_meta($post_id, '_dpj_social_do_not_repost', isset($_POST['do_not_repost']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_local_overlay_enable', isset($_POST['local_overlay_enable']) ? '1' : '0');
         update_post_meta($post_id, '_dpj_social_local_overlay_pos', self::sanitize_overlay_position(isset($_POST['local_overlay_pos']) ? (string) wp_unslash($_POST['local_overlay_pos']) : 'center'));
+        update_post_meta($post_id, '_dpj_social_local_crop_focus', self::sanitize_crop_focus(isset($_POST['local_crop_focus']) ? (string) wp_unslash($_POST['local_crop_focus']) : 'center'));
         update_post_meta($post_id, '_dpj_social_local_hint_enable', isset($_POST['local_hint_enable']) ? '1' : '0');
 
         self::save_performance_fields($post_id);
@@ -1210,6 +1212,7 @@ final class Dr_Purg_Social_Syndicator
         self::maybe_set_meta($post_id, '_dpj_social_local_overlay_text', self::default_local_overlay_text($post_id));
         self::maybe_set_meta($post_id, '_dpj_social_local_overlay_enable', '1');
         self::maybe_set_meta($post_id, '_dpj_social_local_overlay_pos', 'center');
+        self::maybe_set_meta($post_id, '_dpj_social_local_crop_focus', 'center');
         self::maybe_set_meta($post_id, '_dpj_social_local_hint_text', self::default_local_hint_text());
         self::maybe_set_meta($post_id, '_dpj_social_local_hint_enable', '0');
 
@@ -2250,15 +2253,27 @@ final class Dr_Purg_Social_Syndicator
                 <?php esc_html_e('Add a short readable text overlay to the generated cards.', 'dr-purg-social-syndicator'); ?>
             </label>
             <?php $current_pos = self::overlay_position($post_id); ?>
-            <label class="dpj-field dpj-overlay-pos">
-                <?php esc_html_e('Overlay position', 'dr-purg-social-syndicator'); ?>
-                <select name="local_overlay_pos">
-                    <?php foreach (self::overlay_positions() as $pos_option) : ?>
-                        <option value="<?php echo esc_attr($pos_option); ?>" <?php selected($current_pos, $pos_option); ?>><?php echo esc_html(self::overlay_position_label($pos_option)); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <span class="dpj-social-note"><?php esc_html_e('Move the hook off a face or busy area. The contrast scrim follows the text.', 'dr-purg-social-syndicator'); ?></span>
-            </label>
+            <?php $current_focus = self::crop_focus($post_id); ?>
+            <div class="dpj-social-grid">
+                <label class="dpj-field dpj-overlay-pos">
+                    <?php esc_html_e('Overlay position', 'dr-purg-social-syndicator'); ?>
+                    <select name="local_overlay_pos">
+                        <?php foreach (self::overlay_positions() as $pos_option) : ?>
+                            <option value="<?php echo esc_attr($pos_option); ?>" <?php selected($current_pos, $pos_option); ?>><?php echo esc_html(self::overlay_position_label($pos_option)); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span class="dpj-social-note"><?php esc_html_e('Move the hook off a face or busy area. The contrast scrim follows the text.', 'dr-purg-social-syndicator'); ?></span>
+                </label>
+                <label class="dpj-field dpj-crop-focus">
+                    <?php esc_html_e('Crop focus', 'dr-purg-social-syndicator'); ?>
+                    <select name="local_crop_focus">
+                        <?php foreach (self::crop_focus_options() as $focus_option) : ?>
+                            <option value="<?php echo esc_attr($focus_option); ?>" <?php selected($current_focus, $focus_option); ?>><?php echo esc_html(self::crop_focus_label($focus_option)); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span class="dpj-social-note"><?php esc_html_e('Which part of a tall photo to keep when the card crops it (keep top saves faces).', 'dr-purg-social-syndicator'); ?></span>
+                </label>
+            </div>
             <div class="dpj-social-grid">
                 <?php self::render_input('local_hint_text', __('Bottom hint text', 'dr-purg-social-syndicator'), (string) get_post_meta($post_id, '_dpj_social_local_hint_text', true)); ?>
                 <label class="dpj-check dpj-check--inline">
@@ -3150,6 +3165,7 @@ final class Dr_Purg_Social_Syndicator
             $hint_text = self::default_local_hint_text();
         }
         $use_hint = isset($_POST['hint_enable']) && (string) $_POST['hint_enable'] === '1';
+        $crop_focus = self::sanitize_crop_focus(isset($_POST['crop_focus']) ? (string) wp_unslash($_POST['crop_focus']) : 'center');
 
         // Reduced Facebook-card size keeps the payload small; overlay sizing
         // scales with width, so it matches the full-size render.
@@ -3160,7 +3176,7 @@ final class Dr_Purg_Social_Syndicator
             wp_send_json_error(['message' => __('Could not create a temporary preview file.', 'dr-purg-social-syndicator')]);
         }
 
-        $rendered = self::render_social_image_jpeg($source_path, $temp, $width, $height, $overlay_text, $use_overlay, 'facebook', $hint_text, $use_hint, $position);
+        $rendered = self::render_social_image_jpeg($source_path, $temp, $width, $height, $overlay_text, $use_overlay, 'facebook', $hint_text, $use_hint, $position, $crop_focus);
         if (is_wp_error($rendered)) {
             wp_delete_file($temp);
             wp_send_json_error(['message' => $rendered->get_error_message()]);
@@ -3199,9 +3215,10 @@ final class Dr_Purg_Social_Syndicator
         $hint_text = self::local_hint_text($post_id);
         $use_hint = (string) get_post_meta($post_id, '_dpj_social_local_hint_enable', true) === '1';
         $position = self::overlay_position($post_id);
+        $crop_focus = self::crop_focus($post_id);
         $generated = [];
         foreach (self::SOCIAL_IMAGE_VARIANTS as $variant => $config) {
-            $attachment_id = self::create_social_image_variant($post_id, $source_id, $source_path, $variant, $config, $overlay_text, $use_overlay, $hint_text, $use_hint, $position);
+            $attachment_id = self::create_social_image_variant($post_id, $source_id, $source_path, $variant, $config, $overlay_text, $use_overlay, $hint_text, $use_hint, $position, $crop_focus);
             if (is_wp_error($attachment_id)) {
                 update_post_meta($post_id, '_dpj_social_image_generation_last_error', $attachment_id->get_error_message());
                 return $attachment_id;
@@ -3224,7 +3241,7 @@ final class Dr_Purg_Social_Syndicator
         return $generated;
     }
 
-    private static function create_social_image_variant(int $post_id, int $source_id, string $source_path, string $variant, array $config, string $overlay_text, bool $use_overlay, string $hint_text, bool $use_hint, string $position = 'center')
+    private static function create_social_image_variant(int $post_id, int $source_id, string $source_path, string $variant, array $config, string $overlay_text, bool $use_overlay, string $hint_text, bool $use_hint, string $position = 'center', string $crop_focus = 'center')
     {
         $uploads = wp_upload_dir();
         if (!empty($uploads['error'])) {
@@ -3249,7 +3266,7 @@ final class Dr_Purg_Social_Syndicator
 
         $filename = wp_unique_filename($upload_dir, sprintf('%s-local-card-%s-%dx%d.jpg', $post_slug, sanitize_key($variant), $width, $height));
         $target_path = trailingslashit($upload_dir) . $filename;
-        $rendered = self::render_social_image_jpeg($source_path, $target_path, $width, $height, $overlay_text, $use_overlay, $variant, $hint_text, $use_hint, $position);
+        $rendered = self::render_social_image_jpeg($source_path, $target_path, $width, $height, $overlay_text, $use_overlay, $variant, $hint_text, $use_hint, $position, $crop_focus);
         if (is_wp_error($rendered)) {
             return $rendered;
         }
@@ -3287,9 +3304,10 @@ final class Dr_Purg_Social_Syndicator
         return $attachment_id;
     }
 
-    private static function render_social_image_jpeg(string $source_path, string $target_path, int $target_width, int $target_height, string $overlay_text = '', bool $use_overlay = true, string $variant = '', string $hint_text = '', bool $use_hint = false, string $position = 'center')
+    private static function render_social_image_jpeg(string $source_path, string $target_path, int $target_width, int $target_height, string $overlay_text = '', bool $use_overlay = true, string $variant = '', string $hint_text = '', bool $use_hint = false, string $position = 'center', string $crop_focus = 'center')
     {
         $position = self::sanitize_overlay_position($position);
+        $crop_focus = self::sanitize_crop_focus($crop_focus);
         if (!function_exists('imagecreatetruecolor')) {
             return new WP_Error('dpj_social_gd_missing', __('The PHP GD image extension is required to generate social image copies.', 'dr-purg-social-syndicator'));
         }
@@ -3322,7 +3340,7 @@ final class Dr_Purg_Social_Syndicator
         $background = imagecolorallocate($canvas, 238, 245, 240);
         imagefilledrectangle($canvas, 0, 0, $target_width, $target_height, $background);
 
-        self::copy_cover_image($canvas, $source, $source_width, $source_height, $target_width, $target_height);
+        self::copy_cover_image($canvas, $source, $source_width, $source_height, $target_width, $target_height, self::crop_focus_factor($crop_focus));
 
         // Soft, feathered contrast scrim behind the text so the hook stays
         // legible on bright or busy photos. It is a gentle gradient, not a solid
@@ -3643,6 +3661,53 @@ final class Dr_Purg_Social_Syndicator
     }
 
     /**
+     * @return array<int, string>
+     */
+    private static function crop_focus_options(): array
+    {
+        return ['top', 'center', 'bottom'];
+    }
+
+    private static function sanitize_crop_focus(string $focus): string
+    {
+        $focus = sanitize_key($focus);
+        return in_array($focus, self::crop_focus_options(), true) ? $focus : 'center';
+    }
+
+    private static function crop_focus(int $post_id): string
+    {
+        return self::sanitize_crop_focus((string) get_post_meta($post_id, '_dpj_social_local_crop_focus', true));
+    }
+
+    private static function crop_focus_label(string $focus): string
+    {
+        $labels = [
+            'top' => __('Keep top', 'dr-purg-social-syndicator'),
+            'center' => __('Keep center', 'dr-purg-social-syndicator'),
+            'bottom' => __('Keep bottom', 'dr-purg-social-syndicator'),
+        ];
+
+        return $labels[$focus] ?? $labels['center'];
+    }
+
+    /**
+     * Vertical anchor (0.0 top .. 1.0 bottom) for the cover crop. Used only when
+     * the source is taller than the card and the height must be cropped — letting
+     * the operator keep faces or subjects instead of always cropping centered.
+     */
+    private static function crop_focus_factor(string $focus): float
+    {
+        if ($focus === 'top') {
+            return 0.0;
+        }
+        if ($focus === 'bottom') {
+            return 1.0;
+        }
+
+        return 0.5;
+    }
+
+    /**
      * Peak darkness (0.0–0.6) of the text contrast scrim. SOCIAL_CARD_SCRIM is a
      * percent (0 disables; default 28). The gradient feathers to fully
      * transparent at the band edges, so this is the strongest point only.
@@ -3688,21 +3753,26 @@ final class Dr_Purg_Social_Syndicator
         }
     }
 
-    private static function copy_cover_image($canvas, $source, int $source_width, int $source_height, int $target_width, int $target_height): void
+    private static function copy_cover_image($canvas, $source, int $source_width, int $source_height, int $target_width, int $target_height, float $focus_y = 0.5): void
     {
         $source_ratio = $source_width / $source_height;
         $target_ratio = $target_width / $target_height;
+        $focus_y = max(0.0, min(1.0, $focus_y));
 
         if ($source_ratio > $target_ratio) {
+            // Source is wider than the card: full height kept, width cropped
+            // centered. The vertical focus does not apply here.
             $crop_height = $source_height;
             $crop_width = max(1, min($source_width, (int) round($source_height * $target_ratio)));
             $source_x = (int) floor(($source_width - $crop_width) / 2);
             $source_y = 0;
         } else {
+            // Source is taller than the card: height is cropped, so anchor the
+            // crop with the chosen vertical focus to keep faces/subjects.
             $crop_width = $source_width;
             $crop_height = max(1, min($source_height, (int) round($source_width / $target_ratio)));
             $source_x = 0;
-            $source_y = (int) floor(($source_height - $crop_height) / 2);
+            $source_y = (int) round(($source_height - $crop_height) * $focus_y);
         }
 
         imagecopyresampled($canvas, $source, 0, 0, $source_x, $source_y, $target_width, $target_height, $crop_width, $crop_height);
