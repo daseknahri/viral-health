@@ -3718,6 +3718,24 @@ final class Dr_Purg_Social_Syndicator
     }
 
     /**
+     * Brand label drawn on the local social cards. SOCIAL_CARD_BRAND overrides it;
+     * otherwise it follows the WordPress site name, so a cloned blog gets its own
+     * brand on the cards without a code change. The renderer uppercases it.
+     */
+    private static function card_brand(): string
+    {
+        $brand = self::env('SOCIAL_CARD_BRAND', '');
+        if (trim($brand) === '') {
+            $brand = (string) get_bloginfo('name');
+        }
+        if (trim($brand) === '') {
+            $brand = 'Dr Purg Jr.';
+        }
+
+        return $brand;
+    }
+
+    /**
      * Draw a vertical black gradient centered on $peak_y that fades to fully
      * transparent $reach pixels above and below it. Used as a soft readability
      * scrim behind centered overlay text and the bottom hint — no hard edges,
@@ -3884,7 +3902,7 @@ final class Dr_Purg_Social_Syndicator
         $block_height = $brand_size + $brand_gap + (count($lines) * $line_height) + $accent_gap + $accent_height;
         $brand_baseline = max($brand_size + 16, self::overlay_block_top($target_height, $block_height, $position) + $brand_size);
 
-        self::draw_centered_ttf_text($canvas, 'DR PURG JR.', $regular_font, $brand_size, $brand_baseline, $target_width, $sage !== false ? $sage : $white, $outline, $shadow, 2);
+        self::draw_centered_ttf_text($canvas, self::overlay_display_text(self::card_brand()), $regular_font, $brand_size, $brand_baseline, $target_width, $sage !== false ? $sage : $white, $outline, $shadow, 2);
 
         $headline_baseline = $brand_baseline + $brand_gap + $headline_size;
         foreach ($lines as $line) {
@@ -4067,7 +4085,7 @@ final class Dr_Purg_Social_Syndicator
         $block_height = $brand_height + $brand_gap + (count($lines) * $headline_height) + ((count($lines) - 1) * $line_gap) + $accent_gap + $accent_height;
         $y = max(24, self::overlay_block_top($target_height, $block_height, $position));
 
-        self::draw_centered_scaled_string($canvas, 'DR PURG JR.', $font, $y, $brand_scale, $target_width, [213, 232, 224, 0], [0, 0, 0, 26], [92, 17, 48, 48], max(2, (int) round($brand_scale * 0.7)));
+        self::draw_centered_scaled_string($canvas, self::overlay_display_text(self::card_brand()), $font, $y, $brand_scale, $target_width, [213, 232, 224, 0], [0, 0, 0, 26], [92, 17, 48, 48], max(2, (int) round($brand_scale * 0.7)));
 
         $y += $brand_height + $brand_gap;
         foreach ($lines as $line) {

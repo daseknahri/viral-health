@@ -161,6 +161,8 @@ function checkPluginContract() {
     /_dpj_social_local_overlay_pos/,
     /crop_focus_factor/,
     /_dpj_social_local_crop_focus/,
+    /card_brand/,
+    /SOCIAL_CARD_BRAND/,
     /ajax_card_preview/,
     /wp_ajax_dpj_social_card_preview/,
     /wp_send_json_success/,
