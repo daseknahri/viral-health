@@ -240,6 +240,9 @@ function checkPluginContract() {
     /_dpj_social_perf_revenue/,
     /PERF_SLUG/,
     /Social Performance/,
+    /handle_performance_import/,
+    /dpj_social_perf_action/,
+    /Import from CSV/,
   ]);
 
   requireIncludes('hook variants contract', plugin, [

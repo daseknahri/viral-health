@@ -452,6 +452,11 @@ final class Dr_Purg_Social_Syndicator
             return;
         }
 
+        if (isset($_POST['dpj_social_perf_action'])) {
+            self::handle_performance_import();
+            return;
+        }
+
         if (isset($_POST['dpj_social_settings_action'])) {
             self::handle_settings_post();
         }
@@ -1002,6 +1007,164 @@ final class Dr_Purg_Social_Syndicator
         }
 
         return number_format(max(0, (float) $value), 2, '.', '');
+    }
+
+    /**
+     * Import a CSV (for example a GA4 export) and fill the performance log by
+     * matching each row's campaign/slug to a post's utm_campaign (its slug).
+     * Recognised columns (header text, case-insensitive, first match wins):
+     *  - campaign: contains "campaign", "slug", or "utm"
+     *  - clicks:   contains "click", "session", "user", or "view"
+     *  - rpm:      contains "rpm"
+     *  - revenue:  contains "revenue" or "earnings"
+     * Only the columns present are written; missing ones are left untouched.
+     */
+    private static function handle_performance_import(): void
+    {
+        if (!self::can_manage()) {
+            wp_die(esc_html__('You do not have permission to import performance data.', 'dr-purg-social-syndicator'));
+        }
+
+        check_admin_referer('dpj_social_perf_import', 'dpj_social_perf_nonce');
+
+        $redirect = static function (string $notice, array $args = []) {
+            wp_safe_redirect(add_query_arg(array_merge(['page' => self::PERF_SLUG, 'dpj_social_notice' => $notice], $args), admin_url('admin.php')));
+            exit;
+        };
+
+        if (!isset($_FILES['perf_csv']) || !is_array($_FILES['perf_csv']) || (int) ($_FILES['perf_csv']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $redirect('perf_import_failed');
+        }
+
+        $tmp = (string) ($_FILES['perf_csv']['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            $redirect('perf_import_failed');
+        }
+
+        $handle = fopen($tmp, 'r');
+        if ($handle === false) {
+            $redirect('perf_import_failed');
+        }
+
+        $header = fgetcsv($handle);
+        if (!is_array($header)) {
+            fclose($handle);
+            $redirect('perf_import_failed');
+        }
+
+        $cols = ['campaign' => -1, 'clicks' => -1, 'rpm' => -1, 'revenue' => -1];
+
+        // Find the campaign/slug column first. GA4 often labels it "Session
+        // campaign", which also contains "session", so it must be claimed before
+        // the metric columns are matched or it would be mistaken for clicks.
+        foreach ($header as $index => $name) {
+            $key = strtolower(trim((string) $name));
+            if (str_contains($key, 'campaign') || str_contains($key, 'slug') || str_contains($key, 'utm')) {
+                $cols['campaign'] = $index;
+                break;
+            }
+        }
+
+        // Then match the metric columns, skipping the campaign column.
+        foreach ($header as $index => $name) {
+            if ($index === $cols['campaign']) {
+                continue;
+            }
+            $key = strtolower(trim((string) $name));
+            if ($cols['clicks'] < 0 && (str_contains($key, 'click') || str_contains($key, 'session') || str_contains($key, 'user') || str_contains($key, 'view'))) {
+                $cols['clicks'] = $index;
+            }
+            if ($cols['rpm'] < 0 && str_contains($key, 'rpm')) {
+                $cols['rpm'] = $index;
+            }
+            if ($cols['revenue'] < 0 && (str_contains($key, 'revenue') || str_contains($key, 'earning'))) {
+                $cols['revenue'] = $index;
+            }
+        }
+
+        if ($cols['campaign'] < 0) {
+            fclose($handle);
+            $redirect('perf_import_no_campaign');
+        }
+
+        // Map every post slug (its utm_campaign) to its ID once.
+        $slug_to_id = [];
+        foreach (get_posts([
+            'post_type' => 'post',
+            'post_status' => ['publish', 'future', 'draft'],
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ]) as $pid) {
+            $slug = sanitize_title((string) get_post_field('post_name', (int) $pid));
+            if ($slug !== '') {
+                $slug_to_id[$slug] = (int) $pid;
+            }
+        }
+
+        $rows = 0;
+        $updated = 0;
+        $unmatched = 0;
+        while (($row = fgetcsv($handle)) !== false) {
+            if (!is_array($row) || $row === [null]) {
+                continue;
+            }
+            $campaign_raw = isset($row[$cols['campaign']]) ? (string) $row[$cols['campaign']] : '';
+            if (trim($campaign_raw) === '') {
+                continue;
+            }
+            $rows++;
+            $slug = sanitize_title($campaign_raw);
+            if ($slug === '' || !isset($slug_to_id[$slug])) {
+                $unmatched++;
+                continue;
+            }
+
+            $post_id = $slug_to_id[$slug];
+            $changed = false;
+
+            if ($cols['clicks'] >= 0 && isset($row[$cols['clicks']])) {
+                $clicks_digits = preg_replace('/[^0-9]/', '', (string) $row[$cols['clicks']]);
+                if ($clicks_digits !== '' && $clicks_digits !== null) {
+                    update_post_meta($post_id, '_dpj_social_perf_clicks', (string) absint($clicks_digits));
+                    $changed = true;
+                }
+            }
+            if ($cols['rpm'] >= 0 && isset($row[$cols['rpm']])) {
+                $rpm = self::sanitize_decimal(self::strip_number((string) $row[$cols['rpm']]));
+                if ($rpm !== '') {
+                    update_post_meta($post_id, '_dpj_social_perf_rpm', $rpm);
+                    $changed = true;
+                }
+            }
+            if ($cols['revenue'] >= 0 && isset($row[$cols['revenue']])) {
+                $revenue = self::sanitize_decimal(self::strip_number((string) $row[$cols['revenue']]));
+                if ($revenue !== '') {
+                    update_post_meta($post_id, '_dpj_social_perf_revenue', $revenue);
+                    $changed = true;
+                }
+            }
+
+            if ($changed) {
+                update_post_meta($post_id, '_dpj_social_perf_updated', gmdate('c'));
+                $updated++;
+            }
+        }
+        fclose($handle);
+
+        $redirect('perf_imported', [
+            'dpj_perf_updated' => $updated,
+            'dpj_perf_rows' => $rows,
+            'dpj_perf_unmatched' => $unmatched,
+        ]);
+    }
+
+    /**
+     * Strip currency symbols and thousands separators from a number string,
+     * leaving a plain decimal that sanitize_decimal() can parse.
+     */
+    private static function strip_number(string $value): string
+    {
+        return preg_replace('/[^0-9.]/', '', str_replace(',', '', trim($value))) ?? '';
     }
 
     private static function hook_variant_count(): int
@@ -1693,8 +1856,37 @@ final class Dr_Purg_Social_Syndicator
         ?>
         <div class="wrap dpj-social-wrap">
             <h1><?php esc_html_e('Social Performance', 'dr-purg-social-syndicator'); ?></h1>
-            <?php self::render_notice_from_query(); ?>
+            <?php
+            $perf_notice = isset($_GET['dpj_social_notice']) ? sanitize_key(wp_unslash((string) $_GET['dpj_social_notice'])) : '';
+            if ($perf_notice === 'perf_imported') {
+                printf(
+                    '<div class="notice notice-success"><p>%s</p></div>',
+                    esc_html(sprintf(
+                        /* translators: 1: updated count, 2: data row count, 3: unmatched count. */
+                        __('Import complete: updated %1$d post(s) from %2$d row(s); %3$d row(s) had no matching post.', 'dr-purg-social-syndicator'),
+                        absint($_GET['dpj_perf_updated'] ?? 0),
+                        absint($_GET['dpj_perf_rows'] ?? 0),
+                        absint($_GET['dpj_perf_unmatched'] ?? 0)
+                    ))
+                );
+            } elseif ($perf_notice === 'perf_import_no_campaign') {
+                printf('<div class="notice notice-error"><p>%s</p></div>', esc_html__('Import failed: no campaign or slug column was found in the CSV header.', 'dr-purg-social-syndicator'));
+            } elseif ($perf_notice === 'perf_import_failed') {
+                printf('<div class="notice notice-error"><p>%s</p></div>', esc_html__('Import failed: the uploaded file could not be read as a CSV.', 'dr-purg-social-syndicator'));
+            } else {
+                self::render_notice_from_query();
+            }
+            ?>
             <p><?php esc_html_e('Which hooks earned clicks and revenue. Read clicks from Analytics by UTM campaign; record RPM and finalized revenue per post in the Social Editor.', 'dr-purg-social-syndicator'); ?></p>
+            <section class="dpj-social-card dpj-perf-import">
+                <h2><?php esc_html_e('Import from CSV', 'dr-purg-social-syndicator'); ?></h2>
+                <p class="dpj-social-note"><?php esc_html_e('Upload a CSV (for example a GA4 export). Rows are matched to posts by a campaign or slug column (the post slug = its utm_campaign). Recognised columns: campaign/slug, clicks/sessions/users/views, RPM, revenue/earnings. Only the columns present are written.', 'dr-purg-social-syndicator'); ?></p>
+                <form method="post" enctype="multipart/form-data" action="<?php echo esc_url(add_query_arg(['page' => self::PERF_SLUG], admin_url('admin.php'))); ?>">
+                    <?php wp_nonce_field('dpj_social_perf_import', 'dpj_social_perf_nonce'); ?>
+                    <input type="file" name="perf_csv" accept=".csv,text/csv" required>
+                    <button class="button button-primary" type="submit" name="dpj_social_perf_action" value="import"><?php esc_html_e('Import CSV', 'dr-purg-social-syndicator'); ?></button>
+                </form>
+            </section>
             <p class="dpj-perf-summary">
                 <?php printf(
                     /* translators: 1: post count, 2: total clicks, 3: total revenue. */

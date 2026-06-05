@@ -132,7 +132,18 @@ Record results per post in the Social Editor's `Performance` section:
 - **RPM (USD / 1k)** and **Revenue (USD)** — enter from your ad network once finalized.
 - **Notes** — anything worth remembering about the hook, image, or groups used.
 
-The section also shows the post's current hook, UTM campaign, and Facebook posted date for context. Nothing here is auto-pulled from ad networks yet; it is a manual, reviewed log so hook decisions are driven by real numbers instead of guesses.
+The section also shows the post's current hook, UTM campaign, and Facebook posted date for context.
+
+### Import from CSV
+
+Instead of typing each post's numbers, use `Import from CSV` at the top of the Performance page to bulk-fill the log from a spreadsheet — for example a GA4 export. Rows are matched to posts by a **campaign or slug** column, where the post slug is its `utm_campaign`. The importer recognises these columns by header text (case-insensitive, first match wins):
+
+- **campaign**: header contains `campaign`, `slug`, or `utm` (GA4's "Session campaign" works);
+- **clicks**: header contains `click`, `session`, `user`, or `view`;
+- **RPM**: header contains `rpm`;
+- **revenue**: header contains `revenue` or `earnings`.
+
+Only the columns present are written, so a GA4 sessions-by-campaign export fills clicks and leaves RPM/revenue alone; add an ad-network export later for revenue. Numbers are cleaned of currency symbols and thousands separators (`$1,234` → `1234`). After importing, the page reports how many posts were updated and how many rows had no matching post (usually traffic to non-article pages). The GA4 → log step is now a file upload instead of manual typing.
 
 ## Content calendar
 
