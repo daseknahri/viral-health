@@ -93,6 +93,53 @@
     });
   });
 
+  $(document).on('click', '[data-dpj-card-preview-btn]', function (event) {
+    event.preventDefault();
+    if (typeof dpjSocialPreview === 'undefined') {
+      return;
+    }
+
+    const container = document.querySelector('[data-dpj-card-preview]');
+    if (!container) {
+      return;
+    }
+
+    const value = function (selector) {
+      const el = document.querySelector(selector);
+      return el ? el.value : '';
+    };
+    const checked = function (selector) {
+      const el = document.querySelector(selector);
+      return el && el.checked ? '1' : '0';
+    };
+
+    container.textContent = dpjSocialPreview.rendering;
+
+    $.post(dpjSocialPreview.ajaxUrl, {
+      action: 'dpj_social_card_preview',
+      nonce: dpjSocialPreview.nonce,
+      post_id: value('input[name="post_id"]'),
+      overlay_text: value('#dpj-local-overlay-text'),
+      overlay_enable: checked('input[name="local_overlay_enable"]'),
+      overlay_pos: value('select[name="local_overlay_pos"]'),
+      hint_text: value('input[name="local_hint_text"]'),
+      hint_enable: checked('input[name="local_hint_enable"]')
+    }).done(function (response) {
+      if (response && response.success && response.data && response.data.image) {
+        const img = document.createElement('img');
+        img.className = 'dpj-card-preview-img';
+        img.src = response.data.image;
+        img.alt = '';
+        container.innerHTML = '';
+        container.appendChild(img);
+      } else {
+        container.textContent = (response && response.data && response.data.message) ? response.data.message : dpjSocialPreview.failed;
+      }
+    }).fail(function () {
+      container.textContent = dpjSocialPreview.failed;
+    });
+  });
+
   $(document).on('click', '[data-dpj-copy]', function (event) {
     event.preventDefault();
     const selector = $(this).attr('data-dpj-copy');

@@ -135,6 +135,7 @@ final class Dr_Purg_Social_Syndicator
         add_action('admin_menu', [self::class, 'register_admin_pages']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_admin_assets']);
         add_action('admin_init', [self::class, 'handle_admin_actions']);
+        add_action('wp_ajax_dpj_social_card_preview', [self::class, 'ajax_card_preview']);
         add_action('transition_post_status', [self::class, 'handle_post_transition'], 10, 3);
         add_filter('redirect_post_location', [self::class, 'maybe_redirect_after_publish'], 10, 2);
         add_filter('post_row_actions', [self::class, 'add_post_row_action'], 10, 2);
@@ -333,6 +334,12 @@ final class Dr_Purg_Social_Syndicator
 
         if ($page === self::EDITOR_SLUG) {
             wp_enqueue_media();
+            wp_localize_script('dpj-social-syndicator-admin', 'dpjSocialPreview', [
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('dpj_social_card_preview'),
+                'rendering' => __('Rendering preview…', 'dr-purg-social-syndicator'),
+                'failed' => __('Preview failed. Save the post if you just changed the image, then try again.', 'dr-purg-social-syndicator'),
+            ]);
         }
     }
 
@@ -2259,6 +2266,11 @@ final class Dr_Purg_Social_Syndicator
                     <?php esc_html_e('Add bottom hint for link-in-comment posts.', 'dr-purg-social-syndicator'); ?>
                 </label>
             </div>
+            <p class="dpj-card-preview-actions">
+                <button class="button" type="button" data-dpj-card-preview-btn><?php esc_html_e('Preview card', 'dr-purg-social-syndicator'); ?></button>
+                <span class="dpj-social-note"><?php esc_html_e('Renders a Facebook-sized preview from the current image and text, without saving.', 'dr-purg-social-syndicator'); ?></span>
+            </p>
+            <div class="dpj-card-preview" data-dpj-card-preview></div>
             <?php self::render_social_image_qa($post_id); ?>
             <div class="dpj-generated-grid">
                 <?php foreach (self::SOCIAL_IMAGE_VARIANTS as $variant => $config) : ?>
@@ -3104,6 +3116,63 @@ final class Dr_Purg_Social_Syndicator
             'image/webp' => 'webp',
             'image/gif' => 'gif',
         ][$mime] ?? 'jpg';
+    }
+
+    /**
+     * Render a Facebook-sized card preview from the editor's *unsaved* overlay
+     * text, position, and hint controls, using the real renderer so the preview
+     * is pixel-accurate. Returns a base64 data URI; writes no attachment. The
+     * preview only fails the preview itself — it never touches saved cards.
+     */
+    public static function ajax_card_preview(): void
+    {
+        check_ajax_referer('dpj_social_card_preview', 'nonce');
+
+        $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
+        if ($post_id <= 0 || !current_user_can('edit_post', $post_id)) {
+            wp_send_json_error(['message' => __('You do not have permission to preview this card.', 'dr-purg-social-syndicator')]);
+        }
+
+        $source_id = self::social_image_source_id($post_id);
+        $source_path = $source_id > 0 ? get_attached_file($source_id) : '';
+        if (!is_string($source_path) || $source_path === '' || !file_exists($source_path)) {
+            wp_send_json_error(['message' => __('Choose and save a featured image before previewing.', 'dr-purg-social-syndicator')]);
+        }
+
+        $overlay_text = isset($_POST['overlay_text']) ? sanitize_textarea_field(wp_unslash((string) $_POST['overlay_text'])) : '';
+        if ($overlay_text === '') {
+            $overlay_text = self::default_local_overlay_text($post_id);
+        }
+        $use_overlay = isset($_POST['overlay_enable']) && (string) $_POST['overlay_enable'] === '1';
+        $position = self::sanitize_overlay_position(isset($_POST['overlay_pos']) ? (string) wp_unslash($_POST['overlay_pos']) : 'center');
+        $hint_text = isset($_POST['hint_text']) ? sanitize_text_field(wp_unslash((string) $_POST['hint_text'])) : '';
+        if ($hint_text === '') {
+            $hint_text = self::default_local_hint_text();
+        }
+        $use_hint = isset($_POST['hint_enable']) && (string) $_POST['hint_enable'] === '1';
+
+        // Reduced Facebook-card size keeps the payload small; overlay sizing
+        // scales with width, so it matches the full-size render.
+        $width = 540;
+        $height = 675;
+        $temp = wp_tempnam('dpj-social-card-preview.jpg');
+        if (!is_string($temp) || $temp === '') {
+            wp_send_json_error(['message' => __('Could not create a temporary preview file.', 'dr-purg-social-syndicator')]);
+        }
+
+        $rendered = self::render_social_image_jpeg($source_path, $temp, $width, $height, $overlay_text, $use_overlay, 'facebook', $hint_text, $use_hint, $position);
+        if (is_wp_error($rendered)) {
+            wp_delete_file($temp);
+            wp_send_json_error(['message' => $rendered->get_error_message()]);
+        }
+
+        $data = file_get_contents($temp);
+        wp_delete_file($temp);
+        if ($data === false) {
+            wp_send_json_error(['message' => __('Could not read the rendered preview.', 'dr-purg-social-syndicator')]);
+        }
+
+        wp_send_json_success(['image' => 'data:image/jpeg;base64,' . base64_encode($data)]);
     }
 
     private static function generate_social_images_for_post(int $post_id)

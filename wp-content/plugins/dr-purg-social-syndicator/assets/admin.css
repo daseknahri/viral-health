@@ -404,6 +404,20 @@
   align-items: center;
 }
 
+.dpj-card-preview {
+  margin: 10px 0 4px;
+  color: #646970;
+}
+
+.dpj-card-preview-img {
+  display: block;
+  width: 320px;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
 @media (max-width: 782px) {
   .dpj-social-source,
   .dpj-social-grid,
