@@ -1,5 +1,7 @@
 # Leveraging Claude — the developer way
 
+> **Superseded by `docs/claude-code-engine.md`** — the Max-first design (human-triggered Claude Code skills run the factory free on your subscription; the paid API below becomes the *deferred* unattended lane). Read that first; this doc keeps the fuller capability research and cost model.
+
 How to use Claude's full surface (not just chat) to hit the goal: more Facebook-group clicks × pages/session × RPM. Researched against the actual stack and trimmed by a feasibility/cost/guardrail critic. Companion to `docs/fb-click-playbook.md` and `docs/go-live-setup.md`.
 
 ## The reframe

@@ -68,7 +68,8 @@ For live deploy checks, temporarily set `KEPOLI_DEPLOY_FINGERPRINT=1`, redeploy,
 - `docs/chatgpt-prompt-pack.md`: guardrail-hardened ChatGPT/Codex prompts (article, social package, hook variants, calendar ideas) for creating content by hand with a Max plan, matched to the plugin fields.
 - `docs/fb-click-playbook.md`: how to maximize Facebook-group clicks safely — the six-gate model, a ranked playbook, a topic "can't-resist" rubric, style rules, the weekly testing loop, and a prompt upgrade block.
 - `docs/topic-bank.md`: ranked, rubric-scored "can't-resist" topic queue (paste a title into the Claude editor project).
-- `docs/claude-leverage-roadmap.md`: the developer-way plan to use Claude's full surface (API factory, vision, learning loop) — recommended next build is the Overnight Bundle Factory; starts with a free GA4 pages/session fix.
+- `docs/claude-code-engine.md`: the RECOMMENDED Max-first engine — human-triggered Claude Code skills (`/draft-batch`, `/retro`) run the content factory free on the subscription; API only for deferred unattended cron. Includes the two build corrections (draft-only WP-CLI command must do its own insert; no `wp-cli` docker service yet).
+- `docs/claude-leverage-roadmap.md`: fuller capability research + cost model behind the engine doc (the API-factory framing, now the deferred lane).
 - `docs/content-machine-extraction-map.md`: article, image, social, and ad workflow map.
 - `docs/ai-content-growth-strategy.md`: future AI, content, Facebook, SEO, and monetization direction.
 - `docs/site-brief-dr-purg-jr.md`: launch brief, audience, content guardrails, and ad strategy for this clone.
