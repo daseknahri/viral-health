@@ -68,6 +68,7 @@ For live deploy checks, temporarily set `KEPOLI_DEPLOY_FINGERPRINT=1`, redeploy,
 - `docs/chatgpt-prompt-pack.md`: guardrail-hardened ChatGPT/Codex prompts (article, social package, hook variants, calendar ideas) for creating content by hand with a Max plan, matched to the plugin fields.
 - `docs/fb-click-playbook.md`: how to maximize Facebook-group clicks safely — the six-gate model, a ranked playbook, a topic "can't-resist" rubric, style rules, the weekly testing loop, and a prompt upgrade block.
 - `docs/topic-bank.md`: ranked, rubric-scored "can't-resist" topic queue (paste a title into the Claude editor project).
+- `docs/topic-discovery.md`: the harmonic topic-discovery engine on Max — ranked signal sources (FB-group questions + Search Console are the un-copyable edge), a thin `/find-topics` skill that augments the existing calendar generator, and the discover→score→calendar→draft→post→measure→re-weight loop.
 - `docs/claude-code-engine.md`: the RECOMMENDED Max-first engine — human-triggered Claude Code skills (`/draft-batch`, `/retro`) run the content factory free on the subscription; API only for deferred unattended cron. Includes the two build corrections (draft-only WP-CLI command must do its own insert; no `wp-cli` docker service yet).
 - `docs/claude-leverage-roadmap.md`: fuller capability research + cost model behind the engine doc (the API-factory framing, now the deferred lane).
 - `docs/content-machine-extraction-map.md`: article, image, social, and ad workflow map.
