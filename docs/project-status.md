@@ -67,6 +67,8 @@ For live deploy checks, temporarily set `KEPOLI_DEPLOY_FINGERPRINT=1`, redeploy,
 - `docs/go-live-setup.md`: one checklist to turn on each Social Syndicator feature (AI, UTM, cards, FB posting/scheduling, Pinterest API, performance CSV/GA4) — env vars, tokens, and live tests.
 - `docs/chatgpt-prompt-pack.md`: guardrail-hardened ChatGPT/Codex prompts (article, social package, hook variants, calendar ideas) for creating content by hand with a Max plan, matched to the plugin fields.
 - `docs/fb-click-playbook.md`: how to maximize Facebook-group clicks safely — the six-gate model, a ranked playbook, a topic "can't-resist" rubric, style rules, the weekly testing loop, and a prompt upgrade block.
+- `docs/topic-bank.md`: ranked, rubric-scored "can't-resist" topic queue (paste a title into the Claude editor project).
+- `docs/claude-leverage-roadmap.md`: the developer-way plan to use Claude's full surface (API factory, vision, learning loop) — recommended next build is the Overnight Bundle Factory; starts with a free GA4 pages/session fix.
 - `docs/content-machine-extraction-map.md`: article, image, social, and ad workflow map.
 - `docs/ai-content-growth-strategy.md`: future AI, content, Facebook, SEO, and monetization direction.
 - `docs/site-brief-dr-purg-jr.md`: launch brief, audience, content guardrails, and ad strategy for this clone.
