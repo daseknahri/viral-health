@@ -13,8 +13,10 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Claude Code local harness state.
-.claude/
+# Claude Code local harness state (but keep version-controlled commands/skills).
+.claude/*
+!.claude/commands/
+!.claude/skills/
 
 # Local verification artifacts.
 coverage/

@@ -58,4 +58,15 @@ The harmonic part: **MEASURE changes the weighting of DISCOVER each cycle.**
 
 ## First step (corrected — cheapest, highest-signal)
 
-Not a new WP-CLI command. **Start the weekly `docs/signals/fb-questions-*.md` capture this week, and build a thin `/find-topics` skill that reads those captures + GSC + topic-bank/calendar, scores on the canonical rubric, and emits ranked idea JSON to paste into the Calendar UI you already have.** Defer the write-socket and the CLI until manual paste hurts; treat the existing Phase 5 generator as the thing you're feeding better signals.
+Not a new WP-CLI command. **Start the weekly `docs/signals/fb-questions-*.md` capture when you can, and use the `/find-topics` command that reads those captures + GSC + topic-bank, scores on the canonical rubric, and emits ranked idea JSON to paste into the Calendar UI you already have.** Defer the write-socket and the CLI until manual paste hurts; treat the existing Phase 5 generator as the thing you're feeding better signals.
+
+## Running it WITHOUT the FB-question capture (Claude-powered substitute)
+
+The FB-group capture is the *ideal* signal, but it's optional to start. The shipped **`/find-topics`** command (`.claude/commands/find-topics.md`) runs today with **zero captures** by leading with **public proven-attention mining** via WebSearch/WebFetch:
+
+- **what people watch** — high-view YouTube health explainers (proven attention);
+- **what people ask** — recurring Reddit/Quora/forum questions in the audience's words;
+- **Google People-Also-Ask / autocomplete / related** around the seed;
+- **Google Trends** rising + seasonal (timing).
+
+It clusters, dedups against the topic-bank, scores on the canonical rubric, applies the health guardrails, and writes ~10 ranked idea-JSON candidates to `docs/signals/topics-<date>.md` to paste into the Calendar. Public pages + search only — **no Facebook scraping, no gated/ToS-restricted sites.** Usage: `/find-topics` (broad) or `/find-topics sleep` (seed/cluster). It **auto-upgrades** to lead with your FB-group questions the moment `docs/signals/fb-questions-*.md` files exist — so the public substitute carries you now, and your first-party moat takes over later with no change.
