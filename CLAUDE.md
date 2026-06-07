@@ -30,7 +30,8 @@ Traffic comes from the operator posting article links in **Facebook health group
 ```
 - **`/find-topics [seed]`** — discovers ranked, rubric-scored topics from public demand (Reddit/YouTube/PAA/Trends) now, and from first-party FB-group questions + Search Console once `docs/signals/fb-questions-*.md` exist. Emits idea JSON to paste into the Calendar.
 - **`/draft-batch [topic]`** — writes 2–3 full content bundles (guardrail-gated, one experiment per batch) as paste-ready JSON for New from Claude.
-- *(planned)* `/retro` — weekly learning loop; `/guardrail-audit` — shared safety gate.
+- **`/guardrail-audit [draft.json]`** — the **canonical** health + ToS + contract gate; other content commands defer to it so guardrails never drift.
+- **`/retro`** — weekly learning loop: reads Performance/GA4, crowns winning angles/topics, judges the experiments, proposes next-week seeds (Opus, proposals only).
 
 ## Where the thinking lives (read these for detail)
 - `docs/go-live-setup.md` — turn each feature on (env, tokens, tests).
