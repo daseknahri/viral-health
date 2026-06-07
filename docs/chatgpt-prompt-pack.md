@@ -316,7 +316,7 @@ NON-NEGOTIABLE GUARDRAILS (apply to EVERY field):
 - Inclusive, non-judgmental; avoid "always/never/guaranteed/cure". US English, ~7th-grade reading level.
 - Where a personal concern is implied, gently suggest seeing a professional (generally, not as a triage checklist).
 
-OUTPUT — return ONLY a single JSON object, nothing before or after it. No commentary. Use these exact keys. content_html is the ARTICLE BODY ONLY as raw HTML (<p>, <h2>, <h3>, <ul>, <li>) — no <html>/<head>, no title inside it, no markdown, no code fences inside the string. Do NOT include any URL anywhere (the site adds the real link automatically). Respect the limits.
+OUTPUT — return ONLY a single JSON object, nothing before or after it. No commentary. Use these exact keys. content_html is the ARTICLE BODY ONLY as raw HTML (<p>, <h2>, <h3>, <ul>, <li>, and <strong>/<em> for emphasis — one <strong> key phrase per section helps mobile skimmers) — no <html>/<head>, no title inside it, no markdown, no code fences inside the string. Do NOT include any URL or <a> anchor anywhere (the site adds the real link automatically; the body stays URL-free). Respect the limits.
 
 {
   "title": "human, curious, calm headline, under 60 characters",
