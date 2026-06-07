@@ -60,6 +60,30 @@ The whole top of the funnel is the hook. These are the patterns that earn the op
 
 **Test, don't guess.** That is the entire point of hook variants + UTM + the Performance log: ship 2–4 angles over time on similar topics, read which `utm_content` earned the clicks, and let real numbers — not taste — pick your house style.
 
+## Recommended cadence: batch monthly, publish daily
+
+Do the AI work **once a month** in a single Claude Code session, then spend ~10 minutes on each posting day with **no Claude needed**. Fewer sessions, one-time work, then go.
+
+### Once a month — the content session (~1–2 hours, in the repo)
+1. **`/retro`** (skip the first month) → reads last month's Performance/GA4 and gives you the winning-cluster seed.
+2. **`/find-topics [winning-cluster]`** → review the ranked topics, keep the best **12–20**.
+3. **`/draft-batch <topic, topic, topic>`** → it writes 3 reviewed bundles per run (one experiment each); **repeat in the same session** until your month is drafted. Each bundle is saved to `docs/signals/draft-*.json`.
+4. *(optional)* **`/guardrail-audit docs/signals/draft-<slug>-*.json`** on any you're unsure about → PASS or exact fixes.
+5. **Make the images now too:** for each bundle, copy its `image_prompt` → Gemini → save the image. Batch them in the same sitting so posting days need zero prep.
+6. **Commit** the bundles (`git add docs/signals && git commit`) — that's your month of content, banked. Close Claude.
+
+### Each posting day — ~10 min, NO Claude
+1. Pick the next bundle JSON → **copy it**.
+2. WordPress **Social Queue → New from Claude** → paste → **Create draft from bundle**.
+3. Set the featured image you already generated.
+4. **Publish** → Social Editor → **Generate local social cards**.
+5. **Cockpit** → copy caption + first comment + image → post to your FB group(s) → **Mark posted**. (Canary one group, then widen over a few days.)
+
+### Each week — ~5 min
+- **Performance → Pull from GA4**, enter RPM/revenue + note pages/session. That feeds next month's `/retro`.
+
+That's the whole rhythm: **one monthly batch → daily paste-and-post → weekly numbers → next `/retro` steers the next batch.** (`/draft-batch` caps at 3 per run on purpose so each bundle is reviewable; rerun it to fill the month. If you ever want a higher-volume monthly mode, ask and we'll add it.)
+
 ## Guardrails (the asset you are protecting)
 
 These are non-negotiable because they protect the Page, domain, ad accounts, and moderator seats the whole operation depends on (see `docs/growth-engine-roadmap.md` and the project memory):
