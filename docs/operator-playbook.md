@@ -67,7 +67,7 @@ Do the AI work **once a month** in a single Claude Code session, then spend ~10 
 ### Once a month — the content session (~1–2 hours, in the repo)
 1. **`/retro`** (skip the first month) → reads last month's Performance/GA4 and gives you the winning-cluster seed.
 2. **`/find-topics [winning-cluster]`** → review the ranked topics, keep the best **12–20**.
-3. **`/draft-batch <topic, topic, topic>`** → it writes 3 reviewed bundles per run (one experiment each); **repeat in the same session** until your month is drafted. Each bundle is saved to `docs/signals/draft-*.json`.
+3. **`/draft-month`** (one command, canon loaded once → many bundles, the efficient batch) — or **`/draft-batch <a, b, c>`** for 3 at a time, repeated. Each bundle is saved to `docs/signals/draft-*.json`.
 4. *(optional)* **`/guardrail-audit docs/signals/draft-<slug>-*.json`** on any you're unsure about → PASS or exact fixes.
 5. **Make the images now too:** for each bundle, copy its `image_prompt` → Gemini → save the image. Batch them in the same sitting so posting days need zero prep.
 6. **Commit** the bundles (`git add docs/signals && git commit`) — that's your month of content, banked. Close Claude.
@@ -82,7 +82,10 @@ Do the AI work **once a month** in a single Claude Code session, then spend ~10 
 ### Each week — ~5 min
 - **Performance → Pull from GA4**, enter RPM/revenue + note pages/session. That feeds next month's `/retro`.
 
-That's the whole rhythm: **one monthly batch → daily paste-and-post → weekly numbers → next `/retro` steers the next batch.** (`/draft-batch` caps at 3 per run on purpose so each bundle is reviewable; rerun it to fill the month. If you ever want a higher-volume monthly mode, ask and we'll add it.)
+That's the whole rhythm: **one monthly batch → daily paste-and-post → weekly numbers → next `/retro` steers the next batch.** Use **`/draft-month`** for the whole month in one command (canon loaded once = least overhead), or `/draft-batch` for 3-at-a-time. Either way each bundle passes the same guardrail gate and you review it when you paste it.
+
+### Why monthly is cheaper (usage)
+Claude runs **only** during that monthly session — the daily paste-and-post uses none. Generating N articles costs about the same core work whichever cadence you pick, but batching pays the fixed overhead **once** (canon/rubric loaded a single time + prompt-cache reuse, one session instead of N) and keeps it in a single usage window. On Max, interactive Claude Code is **included** (no per-request charge); a very large single batch can bump the rolling usage limit, in which case just pause and resume — the drafts are already saved to files.
 
 ## Guardrails (the asset you are protecting)
 
