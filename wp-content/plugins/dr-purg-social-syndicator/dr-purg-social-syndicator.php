@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.6.2
+ * Version: 0.7.0
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.6.2';
+    private const VERSION = '0.7.0';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -1183,18 +1183,21 @@ final class Dr_Purg_Social_Syndicator
         $clicks = isset($_POST['perf_clicks']) ? trim((string) wp_unslash($_POST['perf_clicks'])) : '';
         $rpm = isset($_POST['perf_rpm']) ? trim((string) wp_unslash($_POST['perf_rpm'])) : '';
         $revenue = isset($_POST['perf_revenue']) ? trim((string) wp_unslash($_POST['perf_revenue'])) : '';
+        $pps = isset($_POST['perf_pps']) ? trim((string) wp_unslash($_POST['perf_pps'])) : '';
         $notes = isset($_POST['perf_notes']) ? sanitize_textarea_field((string) wp_unslash($_POST['perf_notes'])) : '';
 
         $clicks = $clicks === '' ? '' : (string) absint($clicks);
         $rpm = self::sanitize_decimal($rpm);
         $revenue = self::sanitize_decimal($revenue);
+        $pps = self::sanitize_decimal($pps);
 
         update_post_meta($post_id, '_dpj_social_perf_clicks', $clicks);
         update_post_meta($post_id, '_dpj_social_perf_rpm', $rpm);
         update_post_meta($post_id, '_dpj_social_perf_revenue', $revenue);
+        update_post_meta($post_id, '_dpj_social_perf_pps', $pps);
         update_post_meta($post_id, '_dpj_social_perf_notes', $notes);
 
-        if ($clicks !== '' || $rpm !== '' || $revenue !== '' || $notes !== '') {
+        if ($clicks !== '' || $rpm !== '' || $revenue !== '' || $pps !== '' || $notes !== '') {
             update_post_meta($post_id, '_dpj_social_perf_updated', gmdate('c'));
         }
     }
@@ -1252,7 +1255,7 @@ final class Dr_Purg_Social_Syndicator
             $redirect('perf_import_failed');
         }
 
-        $cols = ['campaign' => -1, 'clicks' => -1, 'rpm' => -1, 'revenue' => -1];
+        $cols = ['campaign' => -1, 'clicks' => -1, 'pps' => -1, 'rpm' => -1, 'revenue' => -1];
 
         // Find the campaign/slug column first. GA4 often labels it "Session
         // campaign", which also contains "session", so it must be claimed before
@@ -1271,6 +1274,12 @@ final class Dr_Purg_Social_Syndicator
                 continue;
             }
             $key = strtolower(trim((string) $name));
+            // Pages/session must be claimed BEFORE clicks — "views per session"
+            // contains "view"/"session" and would otherwise be grabbed as clicks.
+            if ($cols['pps'] < 0 && (str_contains($key, 'per session') || str_contains($key, 'pages/session') || str_contains($key, 'pages per') || str_contains($key, 'screenpageviewspersession') || str_contains($key, 'views per session'))) {
+                $cols['pps'] = $index;
+                continue;
+            }
             if ($cols['clicks'] < 0 && (str_contains($key, 'click') || str_contains($key, 'session') || str_contains($key, 'user') || str_contains($key, 'view'))) {
                 $cols['clicks'] = $index;
             }
@@ -1340,6 +1349,13 @@ final class Dr_Purg_Social_Syndicator
                 $revenue = self::sanitize_decimal(self::strip_number((string) $row[$cols['revenue']]));
                 if ($revenue !== '') {
                     update_post_meta($post_id, '_dpj_social_perf_revenue', $revenue);
+                    $changed = true;
+                }
+            }
+            if ($cols['pps'] >= 0 && isset($row[$cols['pps']])) {
+                $pps = self::sanitize_decimal(self::strip_number((string) $row[$cols['pps']]));
+                if ($pps !== '') {
+                    update_post_meta($post_id, '_dpj_social_perf_pps', $pps);
                     $changed = true;
                 }
             }
@@ -1753,6 +1769,8 @@ final class Dr_Purg_Social_Syndicator
         $clicks = (string) get_post_meta($post_id, '_dpj_social_perf_clicks', true);
         $rpm = (string) get_post_meta($post_id, '_dpj_social_perf_rpm', true);
         $revenue = (string) get_post_meta($post_id, '_dpj_social_perf_revenue', true);
+        $pps = (string) get_post_meta($post_id, '_dpj_social_perf_pps', true);
+        $engagement = (string) get_post_meta($post_id, '_dpj_social_perf_engagement', true);
         $notes = (string) get_post_meta($post_id, '_dpj_social_perf_notes', true);
         ?>
         <section class="dpj-social-card dpj-performance" data-dpj-performance>
@@ -1773,7 +1791,14 @@ final class Dr_Purg_Social_Syndicator
                 <label><?php esc_html_e('Revenue (USD)', 'dr-purg-social-syndicator'); ?>
                     <input type="number" min="0" step="0.01" name="perf_revenue" value="<?php echo esc_attr($revenue); ?>">
                 </label>
+                <label><?php esc_html_e('Pages/session', 'dr-purg-social-syndicator'); ?>
+                    <input type="number" min="0" step="0.01" name="perf_pps" value="<?php echo esc_attr($pps); ?>">
+                </label>
             </div>
+            <?php if ($engagement !== '') : ?>
+                <p class="dpj-social-note"><?php printf(/* translators: %s is an engagement rate. */ esc_html__('GA4 engagement rate: %s', 'dr-purg-social-syndicator'), esc_html($engagement)); ?></p>
+            <?php endif; ?>
+            <p class="dpj-social-note"><?php esc_html_e('Pages/session is the second revenue multiplier (clicks × pages/session × RPM). A high-clicks, ~1.0 pages/session post is a broken payoff — the hook out-ran the article. Pulled by GA4, or enter it by hand.', 'dr-purg-social-syndicator'); ?></p>
             <?php self::render_textarea('perf_notes', __('Notes', 'dr-purg-social-syndicator'), $notes, 2, 'dpj-perf-notes'); ?>
         </section>
         <?php
@@ -2100,17 +2125,18 @@ final class Dr_Purg_Social_Syndicator
             $clicks = (string) get_post_meta($post->ID, '_dpj_social_perf_clicks', true);
             $rpm = (string) get_post_meta($post->ID, '_dpj_social_perf_rpm', true);
             $revenue = (string) get_post_meta($post->ID, '_dpj_social_perf_revenue', true);
+            $pps = (string) get_post_meta($post->ID, '_dpj_social_perf_pps', true);
             $posted_at = (string) get_post_meta($post->ID, '_dpj_social_facebook_posted_at', true);
             $hook = (string) get_post_meta($post->ID, '_dpj_social_facebook_hook', true);
 
             // Only list posts with real social activity or recorded performance.
-            if ($posted_at === '' && $clicks === '' && $rpm === '' && $revenue === '') {
+            if ($posted_at === '' && $clicks === '' && $rpm === '' && $revenue === '' && $pps === '') {
                 continue;
             }
 
             $total_clicks += (int) $clicks;
             $total_revenue += (float) $revenue;
-            $rows[] = compact('post', 'clicks', 'rpm', 'revenue', 'posted_at', 'hook');
+            $rows[] = compact('post', 'clicks', 'rpm', 'revenue', 'pps', 'posted_at', 'hook');
         }
 
         ?>
@@ -2146,7 +2172,7 @@ final class Dr_Purg_Social_Syndicator
             <p><?php esc_html_e('Which hooks earned clicks and revenue. Read clicks from Analytics by UTM campaign; record RPM and finalized revenue per post in the Social Editor.', 'dr-purg-social-syndicator'); ?></p>
             <section class="dpj-social-card dpj-perf-import">
                 <h2><?php esc_html_e('Import from CSV', 'dr-purg-social-syndicator'); ?></h2>
-                <p class="dpj-social-note"><?php esc_html_e('Upload a CSV (for example a GA4 export). Rows are matched to posts by a campaign or slug column (the post slug = its utm_campaign). Recognised columns: campaign/slug, clicks/sessions/users/views, RPM, revenue/earnings. Only the columns present are written.', 'dr-purg-social-syndicator'); ?></p>
+                <p class="dpj-social-note"><?php esc_html_e('Upload a CSV (for example a GA4 export). Rows are matched to posts by a campaign or slug column (the post slug = its utm_campaign). Recognised columns: campaign/slug, clicks/sessions, pages/session, RPM, revenue/earnings. Only the columns present are written.', 'dr-purg-social-syndicator'); ?></p>
                 <form method="post" enctype="multipart/form-data" action="<?php echo esc_url(add_query_arg(['page' => self::PERF_SLUG], admin_url('admin.php'))); ?>">
                     <?php wp_nonce_field('dpj_social_perf_import', 'dpj_social_perf_nonce'); ?>
                     <input type="file" name="perf_csv" accept=".csv,text/csv" required>
@@ -2156,7 +2182,7 @@ final class Dr_Purg_Social_Syndicator
             <?php if (self::ga4_enabled()) : ?>
                 <section class="dpj-social-card dpj-perf-import">
                     <h2><?php esc_html_e('Pull clicks from GA4', 'dr-purg-social-syndicator'); ?></h2>
-                    <p class="dpj-social-note"><?php esc_html_e('Pulls sessions by campaign from the GA4 Data API and writes them as clicks, matched to posts by slug (= utm_campaign). Revenue and RPM are not pulled — add those via CSV or by hand.', 'dr-purg-social-syndicator'); ?></p>
+                    <p class="dpj-social-note"><?php esc_html_e('Pulls clicks, pages/session, engagement, and per-hook-variant (utm_content) results by campaign from the GA4 Data API, matched to posts by slug (= utm_campaign). Revenue and RPM are not in this report — add those via CSV or by hand.', 'dr-purg-social-syndicator'); ?></p>
                     <form method="post" action="<?php echo esc_url(add_query_arg(['page' => self::PERF_SLUG], admin_url('admin.php'))); ?>">
                         <?php wp_nonce_field('dpj_social_ga4_pull', 'dpj_social_ga4_nonce'); ?>
                         <label><?php esc_html_e('Days back', 'dr-purg-social-syndicator'); ?>
@@ -2183,17 +2209,21 @@ final class Dr_Purg_Social_Syndicator
                         <th><?php esc_html_e('UTM campaign', 'dr-purg-social-syndicator'); ?></th>
                         <th><?php esc_html_e('FB posted', 'dr-purg-social-syndicator'); ?></th>
                         <th><?php esc_html_e('Clicks', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Pages/sess', 'dr-purg-social-syndicator'); ?></th>
                         <th><?php esc_html_e('RPM', 'dr-purg-social-syndicator'); ?></th>
                         <th><?php esc_html_e('Revenue', 'dr-purg-social-syndicator'); ?></th>
+                        <th><?php esc_html_e('Rev/1k clicks', 'dr-purg-social-syndicator'); ?></th>
                         <th><?php esc_html_e('Actions', 'dr-purg-social-syndicator'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($rows === []) : ?>
-                        <tr><td colspan="8"><?php esc_html_e('No posted or measured posts yet. Post to a platform, or record results in the Social Editor.', 'dr-purg-social-syndicator'); ?></td></tr>
+                        <tr><td colspan="10"><?php esc_html_e('No posted or measured posts yet. Post to a platform, or record results in the Social Editor.', 'dr-purg-social-syndicator'); ?></td></tr>
                     <?php endif; ?>
                     <?php foreach ($rows as $row) :
                         $campaign = sanitize_title((string) get_post_field('post_name', $row['post']->ID));
+                        $clicks_n = (int) $row['clicks'];
+                        $rev_per_k = ($clicks_n > 0 && $row['revenue'] !== '') ? number_format(((float) $row['revenue'] / $clicks_n) * 1000, 2, '.', '') : '';
                         ?>
                         <tr>
                             <td><strong><?php echo esc_html(get_the_title($row['post'])); ?></strong></td>
@@ -2201,8 +2231,10 @@ final class Dr_Purg_Social_Syndicator
                             <td><code><?php echo esc_html($campaign !== '' ? $campaign : (string) $row['post']->ID); ?></code></td>
                             <td><?php echo esc_html($row['posted_at'] !== '' ? $row['posted_at'] : '—'); ?></td>
                             <td><?php echo esc_html($row['clicks'] !== '' ? $row['clicks'] : '—'); ?></td>
+                            <td><?php echo esc_html($row['pps'] !== '' ? $row['pps'] : '—'); ?></td>
                             <td><?php echo esc_html($row['rpm'] !== '' ? $row['rpm'] : '—'); ?></td>
                             <td><?php echo esc_html($row['revenue'] !== '' ? '$' . $row['revenue'] : '—'); ?></td>
+                            <td><?php echo esc_html($rev_per_k !== '' ? '$' . $rev_per_k : '—'); ?></td>
                             <td><a class="button" href="<?php echo esc_url(self::editor_url($row['post']->ID)); ?>"><?php esc_html_e('Edit', 'dr-purg-social-syndicator'); ?></a></td>
                         </tr>
                     <?php endforeach; ?>
@@ -5350,8 +5382,8 @@ final class Dr_Purg_Social_Syndicator
             ],
             'body' => wp_json_encode([
                 'dateRanges' => [['startDate' => $days . 'daysAgo', 'endDate' => 'today']],
-                'dimensions' => [['name' => 'sessionCampaignName']],
-                'metrics' => [['name' => 'sessions']],
+                'dimensions' => [['name' => 'sessionCampaignName'], ['name' => 'sessionManualAdContent']],
+                'metrics' => [['name' => 'sessions'], ['name' => 'screenPageViewsPerSession'], ['name' => 'engagementRate']],
                 'limit' => 100000,
             ]),
         ]);
@@ -5373,18 +5405,46 @@ final class Dr_Purg_Social_Syndicator
             ));
         }
 
+        // Rows are at (campaign × utm_content) grain. Aggregate to a campaign
+        // total (session-weighted pages/session + engagement) and keep a
+        // per-hook-variant breakdown so /retro can crown a winning angle.
         $map = [];
         foreach (($decoded['rows'] ?? []) as $row) {
             if (!is_array($row)) {
                 continue;
             }
             $campaign = (string) ($row['dimensionValues'][0]['value'] ?? '');
-            $sessions = (int) ($row['metricValues'][0]['value'] ?? 0);
             if ($campaign === '' || $campaign === '(not set)' || $campaign === '(direct)') {
                 continue;
             }
-            $map[$campaign] = $sessions;
+            $variant = trim((string) ($row['dimensionValues'][1]['value'] ?? ''));
+            $sessions = (int) ($row['metricValues'][0]['value'] ?? 0);
+            $pps = (float) ($row['metricValues'][1]['value'] ?? 0);
+            $engagement = (float) ($row['metricValues'][2]['value'] ?? 0);
+
+            if (!isset($map[$campaign])) {
+                $map[$campaign] = ['sessions' => 0, 'pps_weighted' => 0.0, 'eng_weighted' => 0.0, 'variants' => []];
+            }
+            $map[$campaign]['sessions'] += $sessions;
+            $map[$campaign]['pps_weighted'] += $pps * $sessions;
+            $map[$campaign]['eng_weighted'] += $engagement * $sessions;
+
+            if ($variant !== '' && $variant !== '(not set)') {
+                $map[$campaign]['variants'][$variant] = [
+                    'clicks' => $sessions,
+                    'pps' => round($pps, 2),
+                    'engagement' => round($engagement, 4),
+                ];
+            }
         }
+
+        foreach ($map as &$data) {
+            $total = (int) $data['sessions'];
+            $data['pps'] = $total > 0 ? round($data['pps_weighted'] / $total, 2) : 0.0;
+            $data['engagement'] = $total > 0 ? round($data['eng_weighted'] / $total, 4) : 0.0;
+            unset($data['pps_weighted'], $data['eng_weighted']);
+        }
+        unset($data);
 
         return $map;
     }
@@ -5437,7 +5497,7 @@ final class Dr_Purg_Social_Syndicator
         $rows = 0;
         $updated = 0;
         $unmatched = 0;
-        foreach ($map as $campaign => $sessions) {
+        foreach ($map as $campaign => $data) {
             $rows++;
             $slug = sanitize_title((string) $campaign);
             if ($slug === '' || !isset($slug_to_id[$slug])) {
@@ -5445,7 +5505,12 @@ final class Dr_Purg_Social_Syndicator
                 continue;
             }
             $post_id = $slug_to_id[$slug];
-            update_post_meta($post_id, '_dpj_social_perf_clicks', (string) absint($sessions));
+            update_post_meta($post_id, '_dpj_social_perf_clicks', (string) absint($data['sessions'] ?? 0));
+            update_post_meta($post_id, '_dpj_social_perf_pps', number_format((float) ($data['pps'] ?? 0), 2, '.', ''));
+            update_post_meta($post_id, '_dpj_social_perf_engagement', number_format((float) ($data['engagement'] ?? 0), 4, '.', ''));
+            if (!empty($data['variants']) && is_array($data['variants'])) {
+                update_post_meta($post_id, '_dpj_social_perf_variants', (string) wp_json_encode($data['variants']));
+            }
             update_post_meta($post_id, '_dpj_social_perf_updated', gmdate('c'));
             $updated++;
         }

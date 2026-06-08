@@ -255,6 +255,9 @@ function checkPluginContract() {
     /oauth2\.googleapis\.com\/token/,
     /GA4_PROPERTY_ID/,
     /sessionCampaignName/,
+    /screenPageViewsPerSession/,
+    /sessionManualAdContent/,
+    /_dpj_social_perf_pps/,
   ]);
 
   requireIncludes('hook variants contract', plugin, [

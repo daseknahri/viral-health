@@ -8,7 +8,7 @@ You are the weekly **retro analyst** for Dr Purg Jr. Turn results into the next 
 
 ## Step 1 — Gather results
 Read whatever exists:
-- `docs/signals/ga4-winners-*.md` and any performance/GA4 export CSV the operator dropped in `docs/signals/` (clicks by `utm_campaign` = post slug; `utm_content` = hook variant v1..vN; pages/session if present — **note pages/session is often manual, so flag when it's missing**).
+- `docs/signals/ga4-winners-*.md` and any performance/GA4 export CSV the operator dropped in `docs/signals/`. The GA4 pull now records, per post: clicks (`_dpj_social_perf_clicks`), **pages/session (`_dpj_social_perf_pps`)**, engagement (`_dpj_social_perf_engagement`), and a **per-hook-variant breakdown** (`_dpj_social_perf_variants` = JSON `v1..vN => {clicks,pps,engagement}` from `utm_content`). Use pages/session as the payoff signal and the per-variant split to crown the winning angle; flag any post still missing pages/session.
 - The drafted bundles `docs/signals/draft-*.json` and `docs/signals/topics-*.md` to recover each post's angle family + which ones carried an **experiment** (see `docs/content-experiments.md`).
 - `docs/topic-bank.md` for cluster context.
 
