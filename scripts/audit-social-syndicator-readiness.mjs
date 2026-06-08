@@ -260,7 +260,9 @@ function checkPluginContract() {
     /sessionCampaignName/,
     /screenPageViewsPerSession/,
     /sessionManualAdContent/,
+    /sessionManualTerm/,
     /_dpj_social_perf_pps/,
+    /_dpj_social_perf_groups/,
   ]);
 
   requireIncludes('hook variants contract', plugin, [

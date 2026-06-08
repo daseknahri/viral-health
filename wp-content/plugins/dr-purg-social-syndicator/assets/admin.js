@@ -141,6 +141,23 @@
     });
   });
 
+  // Cockpit: build a per-group tracked link (utm_term=g_<slug>) as you type the
+  // group name, so each group's clicks attribute separately in GA4.
+  $(document).on('input', '[data-dpj-group-link-for]', function () {
+    const field = document.getElementById(this.getAttribute('data-dpj-group-link-for'));
+    if (!field) {
+      return;
+    }
+    const base = field.getAttribute('data-dpj-group-base') || '';
+    const slug = String(this.value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (slug === '' || base.indexOf('utm_source=') === -1) {
+      field.value = base;
+      return;
+    }
+    const sep = base.indexOf('?') >= 0 ? '&' : '?';
+    field.value = base + sep + 'utm_term=g_' + slug;
+  });
+
   $(document).on('click', '[data-dpj-copy]', function (event) {
     event.preventDefault();
     const selector = $(this).attr('data-dpj-copy');

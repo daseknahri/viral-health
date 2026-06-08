@@ -95,7 +95,9 @@ Set `SOCIAL_UTM_ENABLE=1` to turn on click attribution. When it is on:
 - The Social Editor shows a `Tracked links (UTM)` panel near the top with a UTM-tagged link per platform and a copy button. Use those links when you post manually so Analytics (GA4 / Site Kit) can attribute the clicks.
 - When you post to Facebook through the API, the article link inside the first comment is automatically rewritten to its tracked version at post time. The stored first-comment text stays clean and readable; only the posted copy is tagged.
 
-Each link carries `utm_source` (the platform: `facebook`, `pinterest`, `reddit`), `utm_medium` (configurable per platform — defaults `group` / `pin` / `social`), and `utm_campaign` (the post slug). `utm_content` is reserved for the upcoming hook-variant testing. Tagging is idempotent: a link that already has a `utm_source` is left alone, so re-posting never double-tags.
+Each link carries `utm_source` (the platform: `facebook`, `pinterest`, `reddit`), `utm_medium` (configurable per platform — defaults `group` / `pin` / `social`), and `utm_campaign` (the post slug). `utm_content` carries the hook variant (`v1..vN`), and `utm_term` carries the **group** as `g_<group-slug>` when set. Tagging is idempotent: a link that already has a `utm_source` is left alone, so re-posting never double-tags.
+
+**Per-group attribution:** in `Social Queue → Cockpit`, type a group name in the posting form and the **Group link** field updates live to a tracked link with `utm_term=g_<group>` — copy that group-specific link when you post to that group. The GA4 pull then returns a per-group breakdown (by `sessionManualTerm`) alongside the per-variant split, so you can see which groups actually convert and retire the weak ones. (Posting stays manual — only the link is tagged.)
 
 ```text
 SOCIAL_UTM_ENABLE=1

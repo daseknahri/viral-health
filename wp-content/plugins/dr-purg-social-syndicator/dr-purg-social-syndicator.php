@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.1
+ * Version: 0.7.2
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.1';
+    private const VERSION = '0.7.2';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -1684,11 +1684,12 @@ final class Dr_Purg_Social_Syndicator
      * Build a UTM-tagged tracking URL for a post on a given platform.
      *
      * Campaign defaults to the post slug; an optional $variant fills utm_content
-     * (reserved for the Phase 3 hook-variant work). Returns the plain permalink
-     * when tracking is disabled or the post has no URL, so callers are safe to
-     * use it unconditionally.
+     * (the hook variant), and an optional $group fills utm_term as g_<slug> so
+     * clicks can be attributed to the specific Facebook group it was posted in.
+     * Returns the plain permalink when tracking is disabled or the post has no
+     * URL, so callers are safe to use it unconditionally.
      */
-    private static function social_utm_url(int $post_id, string $source, string $variant = ''): string
+    private static function social_utm_url(int $post_id, string $source, string $variant = '', string $group = ''): string
     {
         $permalink = get_permalink($post_id) ?: '';
         if ($permalink === '' || !self::social_utm_enabled()) {
@@ -1709,6 +1710,10 @@ final class Dr_Purg_Social_Syndicator
         $variant = sanitize_title($variant);
         if ($variant !== '') {
             $args['utm_content'] = $variant;
+        }
+        $group = sanitize_title($group);
+        if ($group !== '') {
+            $args['utm_term'] = 'g_' . $group;
         }
 
         return add_query_arg($args, $base);
@@ -1883,6 +1888,12 @@ final class Dr_Purg_Social_Syndicator
                                 <button class="button" type="button" data-dpj-copy="#dpj-cockpit-link-<?php echo (int) $post_id; ?>"><?php esc_html_e('Copy link', 'dr-purg-social-syndicator'); ?></button>
                                 <a class="button" href="<?php echo esc_url(self::editor_url($post_id)); ?>"><?php esc_html_e('Open editor', 'dr-purg-social-syndicator'); ?></a>
                             </p>
+                            <?php if (self::social_utm_enabled()) : ?>
+                                <label><?php esc_html_e('Group link (type the group below to tag it)', 'dr-purg-social-syndicator'); ?>
+                                    <input type="text" readonly id="dpj-cockpit-grouplink-<?php echo (int) $post_id; ?>" data-dpj-group-base="<?php echo esc_attr($tracked); ?>" value="<?php echo esc_attr($tracked); ?>">
+                                </label>
+                                <p><button class="button" type="button" data-dpj-copy="#dpj-cockpit-grouplink-<?php echo (int) $post_id; ?>"><?php esc_html_e('Copy group link', 'dr-purg-social-syndicator'); ?></button></p>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="dpj-cockpit-log">
@@ -1899,7 +1910,7 @@ final class Dr_Purg_Social_Syndicator
                         <form method="post" action="<?php echo esc_url(add_query_arg(['page' => self::COCKPIT_SLUG], admin_url('admin.php'))); ?>" class="dpj-cockpit-log-form">
                             <?php wp_nonce_field('dpj_social_cockpit_' . $post_id, 'dpj_social_cockpit_nonce'); ?>
                             <input type="hidden" name="post_id" value="<?php echo (int) $post_id; ?>">
-                            <input type="text" name="posting_target" placeholder="<?php esc_attr_e('Group or destination', 'dr-purg-social-syndicator'); ?>">
+                            <input type="text" name="posting_target" data-dpj-group-link-for="dpj-cockpit-grouplink-<?php echo (int) $post_id; ?>" placeholder="<?php esc_attr_e('Group or destination', 'dr-purg-social-syndicator'); ?>">
                             <button class="button button-primary" type="submit" name="dpj_cockpit_action" value="log_posted"><?php esc_html_e('Mark posted', 'dr-purg-social-syndicator'); ?></button>
                         </form>
                     </div>
@@ -5410,7 +5421,7 @@ final class Dr_Purg_Social_Syndicator
             ],
             'body' => wp_json_encode([
                 'dateRanges' => [['startDate' => $days . 'daysAgo', 'endDate' => 'today']],
-                'dimensions' => [['name' => 'sessionCampaignName'], ['name' => 'sessionManualAdContent']],
+                'dimensions' => [['name' => 'sessionCampaignName'], ['name' => 'sessionManualAdContent'], ['name' => 'sessionManualTerm']],
                 'metrics' => [['name' => 'sessions'], ['name' => 'screenPageViewsPerSession'], ['name' => 'engagementRate']],
                 'limit' => 100000,
             ]),
@@ -5433,9 +5444,10 @@ final class Dr_Purg_Social_Syndicator
             ));
         }
 
-        // Rows are at (campaign × utm_content) grain. Aggregate to a campaign
-        // total (session-weighted pages/session + engagement) and keep a
-        // per-hook-variant breakdown so /retro can crown a winning angle.
+        // Rows are at (campaign × utm_content × utm_term) grain. Aggregate to a
+        // campaign total (session-weighted pages/session + engagement) plus a
+        // per-hook-variant (utm_content) and per-group (utm_term) breakdown, so
+        // /retro can crown a winning angle AND see which groups convert.
         $map = [];
         foreach (($decoded['rows'] ?? []) as $row) {
             if (!is_array($row)) {
@@ -5446,23 +5458,23 @@ final class Dr_Purg_Social_Syndicator
                 continue;
             }
             $variant = trim((string) ($row['dimensionValues'][1]['value'] ?? ''));
+            $group = trim((string) ($row['dimensionValues'][2]['value'] ?? ''));
             $sessions = (int) ($row['metricValues'][0]['value'] ?? 0);
             $pps = (float) ($row['metricValues'][1]['value'] ?? 0);
             $engagement = (float) ($row['metricValues'][2]['value'] ?? 0);
 
             if (!isset($map[$campaign])) {
-                $map[$campaign] = ['sessions' => 0, 'pps_weighted' => 0.0, 'eng_weighted' => 0.0, 'variants' => []];
+                $map[$campaign] = ['sessions' => 0, 'pps_weighted' => 0.0, 'eng_weighted' => 0.0, 'variants' => [], 'groups' => []];
             }
             $map[$campaign]['sessions'] += $sessions;
             $map[$campaign]['pps_weighted'] += $pps * $sessions;
             $map[$campaign]['eng_weighted'] += $engagement * $sessions;
 
             if ($variant !== '' && $variant !== '(not set)') {
-                $map[$campaign]['variants'][$variant] = [
-                    'clicks' => $sessions,
-                    'pps' => round($pps, 2),
-                    'engagement' => round($engagement, 4),
-                ];
+                self::ga4_accumulate($map[$campaign]['variants'], $variant, $sessions, $pps, $engagement);
+            }
+            if ($group !== '' && $group !== '(not set)') {
+                self::ga4_accumulate($map[$campaign]['groups'], $group, $sessions, $pps, $engagement);
             }
         }
 
@@ -5471,10 +5483,50 @@ final class Dr_Purg_Social_Syndicator
             $data['pps'] = $total > 0 ? round($data['pps_weighted'] / $total, 2) : 0.0;
             $data['engagement'] = $total > 0 ? round($data['eng_weighted'] / $total, 4) : 0.0;
             unset($data['pps_weighted'], $data['eng_weighted']);
+            $data['variants'] = self::ga4_finalize($data['variants']);
+            $data['groups'] = self::ga4_finalize($data['groups']);
         }
         unset($data);
 
         return $map;
+    }
+
+    /**
+     * Accumulate a session-weighted bucket (a hook variant or a group) while
+     * reading GA4 rows. Pages/session and engagement are weighted by sessions so
+     * the finalized average is correct across multiple rows.
+     *
+     * @param array<string, array<string, float|int>> $bucket
+     */
+    private static function ga4_accumulate(array &$bucket, string $key, int $sessions, float $pps, float $engagement): void
+    {
+        if (!isset($bucket[$key])) {
+            $bucket[$key] = ['clicks' => 0, 'pps_weighted' => 0.0, 'eng_weighted' => 0.0];
+        }
+        $bucket[$key]['clicks'] += $sessions;
+        $bucket[$key]['pps_weighted'] += $pps * $sessions;
+        $bucket[$key]['eng_weighted'] += $engagement * $sessions;
+    }
+
+    /**
+     * Finalize weighted buckets into {clicks, pps, engagement}.
+     *
+     * @param array<string, array<string, float|int>> $bucket
+     * @return array<string, array<string, float|int>>
+     */
+    private static function ga4_finalize(array $bucket): array
+    {
+        $out = [];
+        foreach ($bucket as $key => $entry) {
+            $clicks = (int) $entry['clicks'];
+            $out[$key] = [
+                'clicks' => $clicks,
+                'pps' => $clicks > 0 ? round($entry['pps_weighted'] / $clicks, 2) : 0.0,
+                'engagement' => $clicks > 0 ? round($entry['eng_weighted'] / $clicks, 4) : 0.0,
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -5538,6 +5590,9 @@ final class Dr_Purg_Social_Syndicator
             update_post_meta($post_id, '_dpj_social_perf_engagement', number_format((float) ($data['engagement'] ?? 0), 4, '.', ''));
             if (!empty($data['variants']) && is_array($data['variants'])) {
                 update_post_meta($post_id, '_dpj_social_perf_variants', (string) wp_json_encode($data['variants']));
+            }
+            if (!empty($data['groups']) && is_array($data['groups'])) {
+                update_post_meta($post_id, '_dpj_social_perf_groups', (string) wp_json_encode($data['groups']));
             }
             update_post_meta($post_id, '_dpj_social_perf_updated', gmdate('c'));
             $updated++;
