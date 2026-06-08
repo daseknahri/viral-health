@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.0
+ * Version: 0.7.1
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.0';
+    private const VERSION = '0.7.1';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -143,6 +143,7 @@ final class Dr_Purg_Social_Syndicator
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_admin_assets']);
         add_action('admin_init', [self::class, 'handle_admin_actions']);
         add_action('add_meta_boxes', [self::class, 'register_image_prompt_metabox']);
+        add_action('dpj_social_post_scheduled_comment', [self::class, 'run_scheduled_comment'], 10, 1);
         add_action('wp_ajax_dpj_social_card_preview', [self::class, 'ajax_card_preview']);
         add_action('transition_post_status', [self::class, 'handle_post_transition'], 10, 3);
         add_filter('redirect_post_location', [self::class, 'maybe_redirect_after_publish'], 10, 2);
@@ -4958,6 +4959,13 @@ final class Dr_Purg_Social_Syndicator
             update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_SCHEDULED);
             update_post_meta($post_id, '_dpj_social_facebook_scheduled_at', gmdate('c', $scheduled_time));
             delete_post_meta($post_id, '_dpj_social_facebook_posted_at');
+            // Auto-post the link first comment a few minutes after the Page post
+            // goes live (a scheduled/unpublished post can't be commented on yet).
+            // Page only — never touches groups; idempotent; the manual "Post first
+            // comment" button stays as a fallback if the cron misses.
+            if (!wp_next_scheduled('dpj_social_post_scheduled_comment', [$post_id])) {
+                wp_schedule_single_event($scheduled_time + (5 * MINUTE_IN_SECONDS), 'dpj_social_post_scheduled_comment', [$post_id]);
+            }
             return $result;
         }
 
@@ -5116,7 +5124,25 @@ final class Dr_Purg_Social_Syndicator
             delete_post_meta($post_id, $key);
         }
 
+        // Cancel any pending auto first-comment for a scheduled post.
+        wp_clear_scheduled_hook('dpj_social_post_scheduled_comment', [$post_id]);
+
         update_post_meta($post_id, '_dpj_social_facebook_status', self::STATUS_DRAFT);
+    }
+
+    /**
+     * Cron callback: once a scheduled Facebook PAGE post has gone live, post the
+     * reviewed link first comment automatically. Page only — never targets a
+     * group. Idempotent (post_facebook_comment skips if a comment already exists);
+     * if it misses, the manual "Post first comment" button remains the fallback.
+     */
+    public static function run_scheduled_comment(int $post_id): void
+    {
+        $post_id = (int) $post_id;
+        if ($post_id <= 0 || get_post_status($post_id) === false) {
+            return;
+        }
+        self::post_facebook_comment($post_id);
     }
 
     private static function pinterest_enabled(): bool
@@ -5167,11 +5193,13 @@ final class Dr_Purg_Social_Syndicator
         }
         $description = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_description', true));
         $alt_text = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_alt_text', true));
-        $link = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_url', true));
-        if ($link === '') {
-            $link = (string) get_permalink($post_id);
-        }
-        $link = self::social_utm_url($post_id, 'pinterest');
+        // Preserve a custom destination the operator typed; only fall back to the
+        // tracked permalink when no custom URL is set (do not clobber it, and do
+        // not lose it when UTM is off).
+        $custom_link = trim((string) get_post_meta($post_id, '_dpj_social_pinterest_url', true));
+        $permalink = (string) get_permalink($post_id);
+        $is_custom = $custom_link !== '' && untrailingslashit($custom_link) !== untrailingslashit($permalink);
+        $link = $is_custom ? $custom_link : self::social_utm_url($post_id, 'pinterest');
 
         $body = [
             'board_id' => $board_id,

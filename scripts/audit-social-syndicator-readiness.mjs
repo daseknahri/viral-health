@@ -131,6 +131,9 @@ function checkPluginContract() {
     /parse_schedule_timestamp/,
     /_dpj_social_facebook_scheduled_at/,
     /Schedule Facebook post/,
+    /dpj_social_post_scheduled_comment/,
+    /run_scheduled_comment/,
+    /wp_schedule_single_event/,
   ]);
 
   requireIncludes('AI social draft contract', plugin, [
