@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.2
+ * Version: 0.7.3
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.2';
+    private const VERSION = '0.7.3';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -144,6 +144,7 @@ final class Dr_Purg_Social_Syndicator
         add_action('admin_init', [self::class, 'handle_admin_actions']);
         add_action('add_meta_boxes', [self::class, 'register_image_prompt_metabox']);
         add_action('dpj_social_post_scheduled_comment', [self::class, 'run_scheduled_comment'], 10, 1);
+        add_action('wp_head', [self::class, 'print_ga4_tag'], 5);
         add_action('wp_ajax_dpj_social_card_preview', [self::class, 'ajax_card_preview']);
         add_action('transition_post_status', [self::class, 'handle_post_transition'], 10, 3);
         add_filter('redirect_post_location', [self::class, 'maybe_redirect_after_publish'], 10, 2);
@@ -5292,6 +5293,47 @@ final class Dr_Purg_Social_Syndicator
     private static function ga4_property_id(): string
     {
         return (string) preg_replace('/[^0-9]/', '', self::env('GA4_PROPERTY_ID', ''));
+    }
+
+    /**
+     * The client-side GA4 measurement id (G-XXXXXXXX) used by the gtag.js
+     * COLLECTION tag — distinct from the numeric GA4_PROPERTY_ID used by the
+     * Data API read side. Returns '' when unset or malformed, so presence of a
+     * valid id is the on switch (off by default in source).
+     */
+    private static function ga4_measurement_id(): string
+    {
+        $id = strtoupper(self::env('GA4_MEASUREMENT_ID', ''));
+        return preg_match('/^G-[A-Z0-9]{4,20}$/', $id) ? $id : '';
+    }
+
+    /**
+     * Print the GA4 gtag.js tracking snippet in the site <head> on the front end
+     * when GA4_MEASUREMENT_ID is a valid id. This is what records sessions into
+     * the GA4 property; the Data API pull then reads them back. Keep to a single
+     * Google tag per page — don't combine with Site Kit / another GA plugin.
+     */
+    public static function print_ga4_tag(): void
+    {
+        if (is_admin()) {
+            return;
+        }
+        $id = self::ga4_measurement_id();
+        if ($id === '') {
+            return;
+        }
+
+        $src = esc_url('https://www.googletagmanager.com/gtag/js?id=' . rawurlencode($id));
+        $config = esc_js($id);
+
+        echo "\n<!-- Google tag (gtag.js) — dr-purg-social-syndicator -->\n";
+        echo '<script async src="' . $src . '"></script>' . "\n";
+        echo "<script>\n";
+        echo "  window.dataLayer = window.dataLayer || [];\n";
+        echo "  function gtag(){dataLayer.push(arguments);}\n";
+        echo "  gtag('js', new Date());\n";
+        echo "  gtag('config', '" . $config . "');\n";
+        echo "</script>\n";
     }
 
     private static function ga4_lookback_days(): int

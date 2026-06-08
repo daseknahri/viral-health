@@ -28,9 +28,15 @@ SOCIAL_UTM_REDDIT_MEDIUM=social
 Redeploy. This is what makes per-hook-variant (`utm_content`) and per-group (`utm_term=g_<group>`) attribution work.
 
 ## STEP 2 — GA4 measurement loop
-**Google (one-time):** create a **service account** → download its **JSON key** → enable the **Google Analytics Data API** in that project → add the service-account **email as a Viewer** on the GA4 property → copy the **numeric property ID** (Admin → Property Settings).
+Two distinct IDs — don't mix them: the **`G-XXXX` measurement id** *collects* visits on the site (client-side tag); the **numeric property id** is what the Data API *reads*.
 
-**Coolify → Environment:**
+**2a — Collection tag (so GA4 records visits).** The plugin injects the `gtag.js` tag itself — no extra plugin, no Site Kit. Coolify → Environment:
+```
+GA4_MEASUREMENT_ID=G-XXXXXXXXXX
+```
+Redeploy, then in GA4 → *Configure a Google tag* click **Test installation** to confirm it fires. (Use only this OR Site Kit — never two Google tags per page.)
+
+**2b — Read API (pull the numbers back into WordPress).** Google (one-time): create a **service account** → download its **JSON key** → enable the **Google Analytics Data API** in that project → add the service-account **email as a Viewer** on the GA4 property (uncheck "notify by email" first, or it rejects the service account) → copy the **numeric property id** (Admin → Property Settings — a number, not `G-XXXX`). Coolify → Environment:
 ```
 GA4_ENABLE=1
 GA4_PROPERTY_ID=123456789
