@@ -24,3 +24,15 @@ dist/
 build/
 node_modules/
 .replica-backups/
+
+# Secrets MUST NEVER be committed — they live only in Coolify env.
+# Service-account keys, tokens, and any credential JSON/PEM.
+*.pem
+*.key
+*-service-account*.json
+*serviceaccount*.json
+*-iam-*.json
+# Google Cloud service-account keys are named <project>-<hex>.json.
+n8nproject-*.json
+scripts/*credential*.json
+scripts/*secret*.json
