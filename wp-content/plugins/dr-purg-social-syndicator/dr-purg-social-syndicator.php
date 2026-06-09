@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.3
+ * Version: 0.7.4
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.3';
+    private const VERSION = '0.7.4';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -821,6 +821,31 @@ final class Dr_Purg_Social_Syndicator
         $image_prompt = self::clean_ai_text((string) ($bundle['image_prompt'] ?? ''), 1500);
         if ($image_prompt !== '') {
             update_post_meta($post_id, '_dpj_social_image_prompt', $image_prompt);
+        }
+
+        // Optional multi-channel fields (added with the growth-strategy build).
+        // The 16:9 Discover hero prompt is a plain string; pin_set / reel_script /
+        // community_answer are structured DRAFT assets the operator copies out by
+        // hand (never rendered on the public page), stored as sanitized JSON so the
+        // Cockpit can surface them later. All are optional: absent = nothing stored.
+        $discover_image_prompt = self::clean_ai_text((string) ($bundle['discover_image_prompt'] ?? ''), 1500);
+        if ($discover_image_prompt !== '') {
+            update_post_meta($post_id, '_dpj_social_discover_image_prompt', $discover_image_prompt);
+        }
+        $structured = [
+            '_dpj_social_pin_set' => $bundle['pin_set'] ?? null,
+            '_dpj_social_reel_script' => $bundle['reel_script'] ?? null,
+            '_dpj_social_community_answer' => $bundle['community_answer'] ?? null,
+        ];
+        foreach ($structured as $meta_key => $raw) {
+            $clean = self::sanitize_structured_field($raw);
+            if ($clean === null || $clean === []) {
+                continue;
+            }
+            $encoded = wp_json_encode($clean);
+            if (is_string($encoded) && $encoded !== '') {
+                update_post_meta($post_id, $meta_key, $encoded);
+            }
         }
 
         // Social creative fields. URL/link fields (facebook first comment, links,
@@ -2095,8 +2120,13 @@ final class Dr_Purg_Social_Syndicator
   "reddit_title": "...",
   "reddit_body": "...",
   "overlay_text": "...",
-  "bottom_hint_text": "LINK IN FIRST COMMENT"
+  "bottom_hint_text": "LINK IN FIRST COMMENT",
+  "discover_image_prompt": "... (optional: 16:9 landscape hero prompt for Google Discover)",
+  "pin_set": [{ "overlay_text": "...", "board": "...", "pin_title": "...", "pin_description": "..." }],
+  "reel_script": { "hook": "...", "beats": ["..."], "voiceover": "...", "cta": "..." },
+  "community_answer": { "reddit_comment": "...", "quora_answer": "..." }
 }</pre>
+                <p class="dpj-social-note"><?php esc_html_e('The last four fields are optional — the multi-channel pack (Pinterest pin set, short-form video script, Discover hero, Reddit/Quora answer). Include them to fan one article across channels; omit any you do not need.', 'dr-purg-social-syndicator'); ?></p>
             </details>
 
             <form method="post" action="<?php echo esc_url(add_query_arg(['page' => self::IMPORT_SLUG], admin_url('admin.php'))); ?>" class="dpj-social-card">
@@ -3489,6 +3519,50 @@ final class Dr_Purg_Social_Syndicator
     {
         $value = (string) preg_replace('~https?://\S+~i', '', $value);
         return trim((string) preg_replace('/\s+/', ' ', $value));
+    }
+
+    /**
+     * Recursively sanitize an optional structured bundle field (pin_set,
+     * reel_script, community_answer) into a clean array/string tree ready for
+     * wp_json_encode. Every leaf string is run through clean_ai_text (tags AND
+     * URLs stripped — the operator adds links by hand at post time), list vs.
+     * map shape is preserved, map keys are sanitize_key'd, and empty leaves are
+     * dropped. Returns null when nothing usable remains. Depth-capped so a
+     * malformed bundle can't recurse without bound.
+     *
+     * @param mixed $value
+     * @return mixed|null
+     */
+    private static function sanitize_structured_field($value, int $depth = 0)
+    {
+        if ($depth > 4) {
+            return null;
+        }
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            $clean = self::clean_ai_text((string) $value, 2000, false);
+            return $clean !== '' ? $clean : null;
+        }
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $out = [];
+        foreach ($value as $key => $item) {
+            $clean = self::sanitize_structured_field($item, $depth + 1);
+            if ($clean === null || $clean === [] || $clean === '') {
+                continue;
+            }
+            if (is_int($key)) {
+                $out[] = $clean;
+            } else {
+                $safe_key = sanitize_key((string) $key);
+                if ($safe_key !== '') {
+                    $out[$safe_key] = $clean;
+                }
+            }
+        }
+
+        return $out === [] ? null : $out;
     }
 
     private static function apply_ai_social_draft(int $post_id, array $payload): void

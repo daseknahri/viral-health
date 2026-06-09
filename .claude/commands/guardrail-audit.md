@@ -23,12 +23,20 @@ Run every check below and report each as **pass** or **FIX: <what + the exact ch
 - Content is a reviewable **draft only** — confirm nothing here posts or publishes.
 
 ## C. Contract / limits (hard — the importer truncates silently, so check BOTH bounds)
-- Exactly the bundle keys, no extras, a single JSON object (not an array).
+- The 18 REQUIRED bundle keys, plus ONLY these optional keys: `discover_image_prompt`, `pin_set`, `reel_script`, `community_answer` (each checked in full under D if present). No other extras. A single JSON object (not an array).
 - `content_html` is article-only HTML using only `<p> <h2> <h3> <ul> <li> <strong> <em>` — no `<html>/<head>`, no title inside, no markdown, no code fences, no lone sound-words.
 - Limits: title <60 · seo_title <58 · meta_description 140–180 · excerpt present · facebook_hook <95 · facebook_summary 180–260 · pinterest_title <90 · pinterest_description <420 · pinterest_alt_text <125 · reddit_title <120 · image_alt <125 · overlay_text ≤12 words (complete fragment) · bottom_hint_text ≤6 words.
 - `category` is one of: Body Signals | Habits | Nutrition | Sleep | Movement | Stress.
 
-## D. Quality (soft — flag, don't block)
+## D. Multi-channel optional fields (hard — checked ONLY if the field is present; the gate must actually cover every field it claims to)
+Each optional field inherits ALL of section A (general info only, no personal diagnosis, no banned phrases, no invented numbers) plus its own rule:
+- **Discover title honesty:** the page title (`seo_title`) must state the REAL topic — never the curiosity `facebook_hook`. A withheld-info page title is a FIX (it's both a Discover-suppression risk and a brand-honesty break).
+- **`discover_image_prompt`:** a calm, relatable, non-clinical **16:9 LANDSCAPE** hero prompt (never scary/graphic/medical-procedure/before-after), ending with a landscape size note. For the Discover/Search card only.
+- **`pin_set`:** an array of **≤5** pins; each pin a genuinely DISTINCT angle (no near-duplicate stamps). Per pin: `overlay_text` ≤12 words (general framing) · `board` present · `pin_title` <90 · `pin_description` ≤420 · **zero URLs in any pin field**.
+- **`reel_script`:** `hook` ≤12 words; `beats` and any `voiceover` are general-info only, held to the SAME banned-phrase + general-only list as `overlay_text`; **no symptom-as-self-diagnosis** ("why YOUR X means…"); `cta` is a follow / "join the group" prompt, **never a site link or URL**; zero URLs anywhere in the script.
+- **`community_answer`** (`reddit_comment` and/or `quora_answer`): MUST answer **generally** ("why most people notice X"); MUST NOT respond to a person's situation with any "you might have / sounds like / in your case" framing; MUST include a calm general note that **a clinician is the right person for an individual's specific case**; body stays **URL-free** (the operator adds the link by hand when posting, respecting each community's self-promo ratio).
+
+## E. Quality (soft — flag, don't block)
 - **Hook = contract:** `facebook_hook`, `overlay_text`, and `content_html`'s first sentence make the same promise, paid off above the fold; the withhold is capped (a reader can predict the topic + calm tone).
 - Article length 700–1100 words; lede→nut-graf opener; one `<strong>` key phrase per section.
 

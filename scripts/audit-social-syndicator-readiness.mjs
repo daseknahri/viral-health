@@ -300,6 +300,17 @@ function checkPluginContract() {
     /image_prompt/,
   ]);
 
+  // Multi-channel pack: the optional bundle fields are stored, not silently
+  // dropped, and run through the structured sanitizer.
+  requireIncludes('multi-channel bundle contract', plugin, [
+    /sanitize_structured_field/,
+    /_dpj_social_discover_image_prompt/,
+    /_dpj_social_pin_set/,
+    /_dpj_social_reel_script/,
+    /_dpj_social_community_answer/,
+    /wp_json_encode/,
+  ]);
+
   requireIncludes('content calendar contract', plugin, [
     /render_calendar_page/,
     /handle_calendar_post/,

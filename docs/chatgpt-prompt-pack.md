@@ -336,10 +336,18 @@ OUTPUT — return ONLY a single JSON object, nothing before or after it. No comm
   "reddit_title": "calm, neutral, under 120 characters",
   "reddit_body": "3-6 sentences, transparent and helpful, general info, NO URL (you add the link when you post)",
   "overlay_text": "on-image headline, 8-12 words max",
-  "bottom_hint_text": "LINK IN FIRST COMMENT"
+  "bottom_hint_text": "LINK IN FIRST COMMENT",
+  "discover_image_prompt": "a complete image-generator prompt for a 16:9 LANDSCAPE hero (the Google Discover/Search card): calm, relatable, human-centered, never scary/graphic/medical-procedure/before-after, soft natural daylight. End the prompt with exactly: Landscape orientation, 16:9, high resolution. No text, no words, no logos, no watermark. Natural, undistorted hands and faces.",
+  "pin_set": [
+    { "overlay_text": "on-pin hook, 8-12 words, general framing", "board": "keyword board name, e.g. Why Does My Body Do That", "pin_title": "searchable, under 90 characters", "pin_description": "natural, helpful, under 420 characters, NO URL" }
+  ],
+  "reel_script": { "hook": "on-screen frame-1 hook, 12 words max", "beats": ["2-4 short caption lines, general info, calm payoff before the halfway mark"], "voiceover": "optional spoken voice-over, same general-only rules, NO URL", "cta": "a follow / join-the-group prompt — NEVER a site link or URL" },
+  "community_answer": { "reddit_comment": "answer GENERALLY (why most people notice X), never the person's own case; include a calm 'a clinician is the right person for your specific case' note; NO URL", "quora_answer": "200-300 words, general info, value-first, NO URL" }
 }
 
-Before answering, silently verify: valid JSON; content_html is article-only HTML with no URLs; no diagnosis/cure/advice claims; no invented numbers; every length limit met. Then output ONLY the JSON object.
+The last four keys are the **multi-channel pack** — they fan one article across Pinterest (`pin_set`, 3-5 DISTINCT angles, each a separate search), Facebook/short-form video (`reel_script`, hook + beats + optional voice-over + a group-follow CTA), Google Discover (`discover_image_prompt` + the HONEST `seo_title` as the page title, never the curiosity hook), and Reddit/Quora (`community_answer`, general-only, with the clinician note). Same non-negotiable guardrails apply to every one (general info only, no diagnosis/personal framing, no invented numbers, NO URLs — you add links by hand when posting).
+
+Before answering, silently verify: valid JSON; content_html and all social fields are URL-free; no diagnosis/cure/advice claims (including in pin_set / reel_script / community_answer); no invented numbers; the page `seo_title` is the honest topic (not the curiosity hook); every length limit met. Then output ONLY the JSON object.
 ```
 
 ### Set up Claude as your permanent blog editor (a Project)
