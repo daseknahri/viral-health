@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.6
+ * Version: 0.7.7
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.6';
+    private const VERSION = '0.7.7';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -1898,6 +1898,17 @@ final class Dr_Purg_Social_Syndicator
                         <h2><?php echo esc_html(get_the_title($post)); ?></h2>
                         <span class="dpj-cockpit-status"><?php echo esc_html(sprintf(/* translators: %s is the Facebook status. */ __('Facebook: %s', 'dr-purg-social-syndicator'), $fb_status)); ?></span>
                     </header>
+                    <?php
+                    $pack_pins = self::decode_pack_field($post_id, '_dpj_social_pin_set');
+                    $pin_count = is_array($pack_pins) ? count($pack_pins) : 0;
+                    $posted_count = count($log);
+                    $readiness = ($media_id > 0 ? __('Image set', 'dr-purg-social-syndicator') : __('No image yet', 'dr-purg-social-syndicator'))
+                        . ' · ' . sprintf(/* translators: %d is the number of Pinterest pins staged. */ __('%d pins staged', 'dr-purg-social-syndicator'), $pin_count)
+                        . ' · ' . ($posted_count > 0
+                            ? sprintf(/* translators: %d is the number of places posted. */ __('posted in %d place(s)', 'dr-purg-social-syndicator'), $posted_count)
+                            : __('not posted yet', 'dr-purg-social-syndicator'));
+                    ?>
+                    <p class="dpj-cockpit-readiness"><?php echo esc_html($readiness); ?></p>
                     <div class="dpj-cockpit-body">
                         <?php if ($image !== '') : ?>
                             <div class="dpj-cockpit-media"><?php echo wp_kses_post($image); ?></div>

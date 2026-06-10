@@ -292,6 +292,7 @@ function checkPluginContract() {
     /decode_pack_field/,
     /render_pack_copy_button/,
     /dpj-cockpit-pack/,
+    /dpj-cockpit-readiness/,
     /esc_textarea/,
   ]);
 
