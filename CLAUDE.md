@@ -41,6 +41,7 @@ Traffic comes from the operator posting article links in **Facebook health group
 - `docs/social-syndicator.md` — the plugin reference.
 - `docs/fb-click-playbook.md` — the click strategy + **canonical topic rubric** (the single source of truth for scoring; keep `/find-topics`, `/draft-batch`, and the Project aligned to it).
 - `docs/chatgpt-prompt-pack.md` — the Master Bundle Prompt (the JSON contract) + the Project "editor identity" setup.
+- `docs/image-strategy.md` — the featured-image/thumbnail strategy: one clean 4:5 master + plugin overlay, the upgraded image_prompt/discover_image_prompt formulas, tool (Nano Banana), and the reject checklist.
 - `docs/topic-discovery.md`, `docs/topic-bank.md`, `docs/content-experiments.md` — finding/queuing topics + the experiment rotation.
 - `docs/claude-code-engine.md`, `docs/claude-leverage-roadmap.md` — how Claude runs the engine (Max-first; API only for deferred unattended cron).
 - `docs/project-status.md` — index of all docs.
