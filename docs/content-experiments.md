@@ -13,7 +13,7 @@
 ## Adopted writing upgrades (now baked into the prompt + `/draft-batch`)
 
 - **Lede → nut-graf:** first sentence = the exact promised payoff; one line on "why it matters on a normal day" before the first `<h2>`.
-- **Bold scan-layer:** one `<strong>` key phrase per section for skimmers (`wp_kses_post` keeps `<strong>`/`<em>`).
+- **Bold scan-layer:** one `<strong>` per section wrapping a COMPLETE sentence — the section's key takeaway — for skimmers (the theme renders `<strong>` as a standalone callout, so never bold a mid-sentence clause; `wp_kses_post` keeps `<strong>`/`<em>`).
 - **Named-trigger hook test:** concrete trigger + body-part/moment, not an abstract theme.
 - **URL-less second-click cue:** a same-theme prose suggestion at the end of the body — no link/slug (the site adds links; the body stays URL-free).
 

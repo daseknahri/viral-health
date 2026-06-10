@@ -47,7 +47,7 @@ Each pack field present inherits ALL of section A (general info only, no persona
 - **Heading-SEO:** at least two `<h2>` contain the core keyword or are phrased as a real search question (PAA-style), not mood-only labels.
 - **Second-click cue:** ends on ONE specific, NAMED neighboring phenomenon the reader can picture (opens a small new loop); never "is worth a look too" or a vague "the way your body…" abstraction; unique per article (and across a batch).
 - **Voice:** reads like a curious person, not a template — contractions by default; at least one calm "delight beat"; NOT the "If this surprised you, the way X is worth a look too" closing frame; varied nut-graf (no "It is one of…" / "Here's the twist:" stamps).
-- **Length:** 700–1100 words; lede→nut-graf opener; one `<strong>` key phrase per section.
+- **Length & callout:** 700–1100 words; lede→nut-graf opener; one `<strong>` per section wrapping a **COMPLETE sentence** (the section's key takeaway) — never a mid-sentence clause. FIX a `<strong>` that starts or ends mid-sentence: the theme renders `<strong>` as a standalone bold callout, so a partial clause renders as a broken, orphaned fragment.
 
 ## Output
 End with a one-line verdict: **PASS — safe to paste into New from Claude**, or **NEEDS FIXES (N hard, M soft)** followed by the numbered fixes. List hard fixes first. Be specific and decidable — quote the offending text and give the exact replacement where you can.
