@@ -35,6 +35,8 @@ Traffic comes from the operator posting article links in **Facebook health group
 - **`/retro`** — weekly learning loop: reads Performance/GA4, crowns winning angles/topics, judges the experiments, proposes next-week seeds (Opus, proposals only).
 
 ## Where the thinking lives (read these for detail)
+- **`docs/operating-doctrine.md` — START HERE: what we want and the easiest way to run it (FB Groups + Pinterest only; bank a month in one ~90-min session; Claude drafts, human approves + posts).**
+- `docs/growth-strategy.md` — the research-backed channel strategy (what/why); `docs/build-plan.md` — the engineering roadmap (phases).
 - `docs/go-live-setup.md` — turn each feature on (env, tokens, tests).
 - `docs/social-syndicator.md` — the plugin reference.
 - `docs/fb-click-playbook.md` — the click strategy + **canonical topic rubric** (the single source of truth for scoring; keep `/find-topics`, `/draft-batch`, and the Project aligned to it).

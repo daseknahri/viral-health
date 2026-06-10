@@ -26,13 +26,13 @@ Run every check below and report each as **pass** or **FIX: <what + the exact ch
 - Content is a reviewable **draft only** — confirm nothing here posts or publishes.
 
 ## C. Contract / limits (hard — the importer truncates silently, so check BOTH bounds)
-- The 18 core bundle keys PLUS the four multi-channel pack keys (`discover_image_prompt`, `pin_set`, `reel_script`, `community_answer`) — all REQUIRED. A bundle missing any pack field is a FIX (the Discover / Pinterest / short-form / community surfaces are the point of the pack). No other extras. A single JSON object (not an array).
+- The 18 core bundle keys, plus the multi-channel pack keys (`discover_image_prompt`, `pin_set`, `reel_script`, `community_answer`) — OPTIONAL, emit only what the active channels use (per `docs/operating-doctrine.md`: `pin_set` + the free `seo_title`/`discover_image_prompt` byproducts by default; add `reel_script`/`community_answer` only when actually running Reels or Reddit/Quora — don't create review-surface for cut channels). Every pack field that IS present is quality-checked in full under D. No other extras. A single JSON object (not an array).
 - `content_html` is article-only HTML using only `<p> <h2> <h3> <ul> <li> <strong> <em>` — no `<html>/<head>`, no title inside, no markdown, no code fences, no lone sound-words.
 - Limits: title <60 · seo_title <58 · meta_description 140–180 · excerpt present · facebook_hook <95 · facebook_summary 180–260 · pinterest_title <90 · pinterest_description <420 · pinterest_alt_text <125 · reddit_title <120 · image_alt <125 · overlay_text ≤12 words (complete fragment) · bottom_hint_text ≤6 words.
 - `category` is one of: Body Signals | Habits | Nutrition | Sleep | Movement | Stress.
 
-## D. Multi-channel pack (hard — all four fields REQUIRED on every bundle; a missing field is a FIX)
-Each pack field inherits ALL of section A (general info only, no personal diagnosis, no banned phrases, no invented numbers, contested-science hedged) plus its own rule:
+## D. Multi-channel pack (hard — each field is checked in full WHEN PRESENT; emit only the channels you run, but whatever ships must clear these)
+Each pack field present inherits ALL of section A (general info only, no personal diagnosis, no banned phrases, no invented numbers, contested-science hedged) plus its own rule:
 - **Discover title honesty:** the page title (`seo_title`) must state the REAL topic — never the curiosity `facebook_hook`. A withheld-info page title is a FIX (it's both a Discover-suppression risk and a brand-honesty break).
 - **`discover_image_prompt`:** a calm, relatable, non-clinical **16:9 LANDSCAPE** hero prompt (never scary/graphic/medical-procedure/before-after), ending with a landscape size note. For the Discover/Search card only.
 - **`pin_set`:** an array of **≤5** pins, each a genuinely DISTINCT searcher intent (rotate ≥3 of: how/why explainer · the-real-reason myth-bust · surprising-detail · practical-tip · relatable-moment). Per pin: `overlay_text` ≤12 words (general framing) · `board` present · `pin_title` <90, differs from the article title and from other pins' first 4 words · `pin_description` ≤420, front-loads its keyword in the first ~6 words, ends with 2–3 plain hashtags · **zero URLs in any pin field**.
