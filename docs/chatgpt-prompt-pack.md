@@ -316,11 +316,18 @@ NON-NEGOTIABLE GUARDRAILS (apply to EVERY field):
 - Inclusive, non-judgmental; avoid "always/never/guaranteed/cure". US English, ~7th-grade reading level.
 - Where a personal concern is implied, gently suggest seeing a professional (generally, not as a triage checklist).
 
+VOICE & CRAFT (this is what separates good from generic):
+- Write like a curious friend, not a textbook. Use contractions by default (it's, you're, can't, here's). Include at least one calm "delight beat" — a short playful aside — staying general, no hype, no "!".
+- Pay off the hook in sentence one, then a one-line nut-graf — but VARY that opener across articles (don't start every piece with "It is not X, it is just Y" or "It is one of…").
+- Body = 4-6 `<h2>` sections, each ~110-180 words and teaching something NEW (a mechanism, cause, consequence, or surprising angle) — no renaming or restating. Include ONE mid-article ESCALATION BEAT: a clever proof, a benign vivid example (e.g. how much taller astronauts get in zero-g), or a counter-test — calm and non-scary, never an alarming extreme.
+- End `content_html` on ONE specific, NAMED neighboring phenomenon the reader can picture ("the same nerve trick is why you stop feeling your socks within minutes of putting them on") — never "is worth a look too" or a vague "the way your body…" abstraction.
+- Be honest about uncertainty: frame any single-study, mixed-replication, or competing-theory claim as "the leading idea is…", never as settled fact; make any stated cause connect to any stated fix.
+
 OUTPUT — return ONLY a single JSON object, nothing before or after it. No commentary. Use these exact keys. content_html is the ARTICLE BODY ONLY as raw HTML (<p>, <h2>, <h3>, <ul>, <li>, and <strong>/<em> for emphasis — one <strong> key phrase per section helps mobile skimmers) — no <html>/<head>, no title inside it, no markdown, no code fences inside the string. Do NOT include any URL or <a> anchor anywhere (the site adds the real link automatically; the body stays URL-free). Respect the limits.
 
 {
-  "title": "human, curious, calm headline, under 60 characters",
-  "seo_title": "search-friendly title, under 58 characters",
+  "title": "human, curious, calm CURIOSITY headline, under 60 characters (distinct from seo_title and pinterest_title)",
+  "seo_title": "the HONEST search phrase a person types — keep the searchable qualifier/comparative (e.g. '...Than at Night'); under 58 chars; NOT the curiosity hook; distinct from title",
   "meta_description": "plain accurate summary, 140-180 characters",
   "excerpt": "1-2 sentence intro summary",
   "category": "one broad category, e.g. Body Signals / Habits / Nutrition / Sleep",
@@ -330,24 +337,24 @@ OUTPUT — return ONLY a single JSON object, nothing before or after it. No comm
   "content_html": "<p>Curiosity intro that starts paying off immediately.</p><h2>...</h2><p>...</p><ul><li>...</li></ul><h2>When to talk to a professional</h2><p>calm, general, non-diagnostic note</p><h2>The bottom line</h2><p>calm wrap-up</p>",
   "facebook_hook": "curiosity hook, under 95 characters, no URL",
   "facebook_summary": "exactly 2 sentences, 180-260 characters, NO URL, don't say 'click the link'",
-  "pinterest_title": "searchable, under 90 characters",
+  "pinterest_title": "keyword-led searcher phrasing, under 90 characters; differs from title by >=3 words (never the article title copied)",
   "pinterest_description": "natural, helpful, under 420 characters, no URL",
   "pinterest_alt_text": "literal image description, under 125 characters",
   "reddit_title": "calm, neutral, under 120 characters",
-  "reddit_body": "3-6 sentences, transparent and helpful, general info, NO URL (you add the link when you post)",
-  "overlay_text": "on-image headline, 8-12 words max",
+  "reddit_body": "open in a real member's first-person voice (BANNED openers: 'Found a calm explanation', 'Came across', 'Here's why'); 3-6 sentences, general info; add a one-line TL;DR if 4+ sentences; end with a topic-SPECIFIC question about the general phenomenon (not 'anyone else?'); NO URL",
+  "overlay_text": "the facebook_hook compressed to a 5-9 word STANDALONE CURIOSITY FRAGMENT (max 12): NOT the title/seo_title restated, NO terminal period, opens the SAME loop as facebook_hook (same withheld specific). Self-check: if removing the title makes it meaningless, or it answers its own question, rewrite it",
   "bottom_hint_text": "LINK IN FIRST COMMENT",
   "discover_image_prompt": "a complete image-generator prompt for a 16:9 LANDSCAPE hero (the Google Discover/Search card): calm, relatable, human-centered, never scary/graphic/medical-procedure/before-after, soft natural daylight. End the prompt with exactly: Landscape orientation, 16:9, high resolution. No text, no words, no logos, no watermark. Natural, undistorted hands and faces.",
   "pin_set": [
-    { "overlay_text": "on-pin hook, 8-12 words, general framing", "board": "keyword board name, e.g. Why Does My Body Do That", "pin_title": "searchable, under 90 characters", "pin_description": "natural, helpful, under 420 characters, NO URL" }
+    { "overlay_text": "on-pin hook, 5-9 words, general framing", "board": "keyword board name, e.g. Why Does My Body Do That", "pin_title": "searcher phrasing, under 90 chars, DIFFERENT from the article title and from other pins' first 4 words", "pin_description": "front-load the keyword in the first ~6 words, helpful, under 420 chars, NO URL, end with 2-3 plain hashtags" }
   ],
-  "reel_script": { "hook": "on-screen frame-1 hook, 12 words max", "beats": ["2-4 short caption lines, general info, calm payoff before the halfway mark"], "voiceover": "optional spoken voice-over, same general-only rules, NO URL", "cta": "a follow / join-the-group prompt — NEVER a site link or URL" },
-  "community_answer": { "reddit_comment": "answer GENERALLY (why most people notice X), never the person's own case; include a calm 'a clinician is the right person for your specific case' note; NO URL", "quora_answer": "200-300 words, general info, value-first, NO URL" }
+  "reel_script": { "hook": "a 1-second THUMB-STOP spoken aloud that OPENS the loop (no ALL CAPS, no '!', and DON'T state a leading-theory claim as settled), 12 words max", "beats": ["2-4 spoken-cadence lines, general info, the surprising payoff stated before beat 3"], "voiceover": "optional spoken voice-over, same general-only rules, NO URL", "cta": "a SPECIFIC, benefit-framed follow / join-the-group prompt — calm voice (no 'weird/crazy'), never promise a counted list the article doesn't contain, NEVER a site link or URL" },
+  "community_answer": { "reddit_comment": "real member's first-person voice (no 'Found a calm explanation'); answer GENERALLY (why most people notice X), never the person's own case; close with a question about the GENERAL phenomenon (never inviting personal symptoms); include a calm 'a clinician is the right person for your specific case' note; NO URL", "quora_answer": "200-300 words, general info, value-first, NO URL" }
 }
 
 The last four keys are the **multi-channel pack** — they fan one article across Pinterest (`pin_set`, 3-5 DISTINCT angles, each a separate search), Facebook/short-form video (`reel_script`, hook + beats + optional voice-over + a group-follow CTA), Google Discover (`discover_image_prompt` + the HONEST `seo_title` as the page title, never the curiosity hook), and Reddit/Quora (`community_answer`, general-only, with the clinician note). Same non-negotiable guardrails apply to every one (general info only, no diagnosis/personal framing, no invented numbers, NO URLs — you add links by hand when posting).
 
-Before answering, silently verify: valid JSON; content_html and all social fields are URL-free; no diagnosis/cure/advice claims (including in pin_set / reel_script / community_answer); no invented numbers; the page `seo_title` is the honest topic (not the curiosity hook); every length limit met. Then output ONLY the JSON object.
+Before answering, silently verify: valid JSON; content_html and all social fields are URL-free; no diagnosis/cure/advice claims (including in pin_set / reel_script / community_answer); no invented numbers; every explanatory/causal claim is consensus OR explicitly framed as a leading idea / single study / competing theories (never a contested claim stated as settled), and any stated cause connects to any stated fix; `title`, `seo_title`, and `pinterest_title` are three distinct strings and `seo_title` is the honest topic (not the curiosity hook); `overlay_text` is not the title restated and has no terminal period; all four pack fields are present and native; content_html is 4-6 dense sections with one escalation beat and a specific named second-click cue; every length limit met. Then output ONLY the JSON object.
 ```
 
 ### Set up Claude as your permanent blog editor (a Project)

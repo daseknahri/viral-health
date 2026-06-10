@@ -286,6 +286,15 @@ function checkPluginContract() {
     /Posting Cockpit/,
   ]);
 
+  // Channel Cockpit: the multi-channel pack is surfaced (escaped) for copy-and-post.
+  requireIncludes('channel cockpit pack contract', plugin, [
+    /render_cockpit_pack/,
+    /decode_pack_field/,
+    /render_pack_copy_button/,
+    /dpj-cockpit-pack/,
+    /esc_textarea/,
+  ]);
+
   requireIncludes('Claude bundle import contract', plugin, [
     /handle_import_post/,
     /apply_imported_bundle/,

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.4
+ * Version: 0.7.5
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.4';
+    private const VERSION = '0.7.5';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -1922,6 +1922,7 @@ final class Dr_Purg_Social_Syndicator
                             <?php endif; ?>
                         </div>
                     </div>
+                    <?php self::render_cockpit_pack($post_id); ?>
                     <div class="dpj-cockpit-log">
                         <h3><?php esc_html_e('Posting log', 'dr-purg-social-syndicator'); ?></h3>
                         <?php if ($log === []) : ?>
@@ -1943,6 +1944,185 @@ final class Dr_Purg_Social_Syndicator
                 </section>
             <?php endforeach; ?>
         </div>
+        <?php
+    }
+
+    /**
+     * Decode a JSON-encoded multi-channel pack field (pin_set / reel_script /
+     * community_answer) stored by the importer. Returns the array or null.
+     *
+     * @return array<mixed>|null
+     */
+    private static function decode_pack_field(int $post_id, string $meta_key): ?array
+    {
+        $raw = (string) get_post_meta($post_id, $meta_key, true);
+        if ($raw === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private static function render_pack_copy_button(string $target_id, string $label): void
+    {
+        ?>
+        <p><button class="button" type="button" data-dpj-copy="#<?php echo esc_attr($target_id); ?>"><?php echo esc_html($label); ?></button></p>
+        <?php
+    }
+
+    /**
+     * Render the per-post multi-channel pack inside a Cockpit card: the Pinterest
+     * pin set, the short-form reel script, the Reddit/Quora answers, and the
+     * Discover hero prompt — each copy-ready, with platform-tagged tracked links
+     * where relevant. Everything is output-escaped; the panel shows only when the
+     * post actually carries pack fields.
+     */
+    private static function render_cockpit_pack(int $post_id): void
+    {
+        $pins = self::decode_pack_field($post_id, '_dpj_social_pin_set');
+        $reel = self::decode_pack_field($post_id, '_dpj_social_reel_script');
+        $community = self::decode_pack_field($post_id, '_dpj_social_community_answer');
+        $discover = (string) get_post_meta($post_id, '_dpj_social_discover_image_prompt', true);
+
+        $has_pins = is_array($pins) && $pins !== [];
+        $has_reel = is_array($reel) && $reel !== [];
+        $has_community = is_array($community) && $community !== [];
+        if (!$has_pins && !$has_reel && !$has_community && $discover === '') {
+            return;
+        }
+
+        $base = 'dpj-pack-' . $post_id . '-';
+        ?>
+        <details class="dpj-cockpit-pack">
+            <summary><?php esc_html_e('Multi-channel pack (Pinterest · short-form video · Reddit/Quora · Discover)', 'dr-purg-social-syndicator'); ?></summary>
+
+            <?php if ($has_pins) :
+                $pin_link = self::social_utm_url($post_id, 'pinterest');
+                ?>
+                <section class="dpj-pack-channel">
+                    <h4><?php esc_html_e('Pinterest pins', 'dr-purg-social-syndicator'); ?></h4>
+                    <?php if ($pin_link !== '') : ?>
+                        <label><?php esc_html_e('Pin destination link (paste as the pin URL)', 'dr-purg-social-syndicator'); ?>
+                            <input type="text" readonly id="<?php echo esc_attr($base . 'pinurl'); ?>" value="<?php echo esc_attr($pin_link); ?>">
+                        </label>
+                        <?php self::render_pack_copy_button($base . 'pinurl', __('Copy pin link', 'dr-purg-social-syndicator')); ?>
+                    <?php endif; ?>
+                    <?php foreach (array_values($pins) as $i => $pin) :
+                        if (!is_array($pin)) {
+                            continue;
+                        }
+                        $overlay = (string) ($pin['overlay_text'] ?? '');
+                        $board = (string) ($pin['board'] ?? '');
+                        $ptitle = (string) ($pin['pin_title'] ?? '');
+                        $pdesc = (string) ($pin['pin_description'] ?? '');
+                        ?>
+                        <div class="dpj-pack-pin">
+                            <p><strong><?php echo esc_html(sprintf(/* translators: %d is the pin number. */ __('Pin %d', 'dr-purg-social-syndicator'), $i + 1)); ?></strong><?php if ($board !== '') : ?> — <?php echo esc_html(sprintf(/* translators: %s is the board name. */ __('board: %s', 'dr-purg-social-syndicator'), $board)); ?><?php endif; ?></p>
+                            <?php if ($ptitle !== '') : ?>
+                                <label><?php esc_html_e('Title', 'dr-purg-social-syndicator'); ?>
+                                    <input type="text" readonly id="<?php echo esc_attr($base . 'pintitle-' . $i); ?>" value="<?php echo esc_attr($ptitle); ?>">
+                                </label>
+                                <?php self::render_pack_copy_button($base . 'pintitle-' . $i, __('Copy title', 'dr-purg-social-syndicator')); ?>
+                            <?php endif; ?>
+                            <?php if ($pdesc !== '') : ?>
+                                <label><?php esc_html_e('Description', 'dr-purg-social-syndicator'); ?>
+                                    <textarea readonly rows="3" id="<?php echo esc_attr($base . 'pindesc-' . $i); ?>"><?php echo esc_textarea($pdesc); ?></textarea>
+                                </label>
+                                <?php self::render_pack_copy_button($base . 'pindesc-' . $i, __('Copy description', 'dr-purg-social-syndicator')); ?>
+                            <?php endif; ?>
+                            <?php if ($overlay !== '') : ?>
+                                <label><?php esc_html_e('Image overlay text', 'dr-purg-social-syndicator'); ?>
+                                    <input type="text" readonly id="<?php echo esc_attr($base . 'pinoverlay-' . $i); ?>" value="<?php echo esc_attr($overlay); ?>">
+                                </label>
+                                <?php self::render_pack_copy_button($base . 'pinoverlay-' . $i, __('Copy overlay', 'dr-purg-social-syndicator')); ?>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </section>
+            <?php endif; ?>
+
+            <?php if ($has_reel) :
+                $hook = (string) ($reel['hook'] ?? '');
+                $beats = $reel['beats'] ?? [];
+                $vo = (string) ($reel['voiceover'] ?? '');
+                $cta = (string) ($reel['cta'] ?? '');
+                if (is_array($beats)) {
+                    $clean_beats = [];
+                    foreach ($beats as $beat) {
+                        $beat = trim((string) $beat);
+                        if ($beat !== '') {
+                            $clean_beats[] = $beat;
+                        }
+                    }
+                    $beats_text = implode("\n", $clean_beats);
+                } else {
+                    $beats_text = trim((string) $beats);
+                }
+                $script_parts = [];
+                if ($hook !== '') {
+                    $script_parts[] = 'HOOK: ' . $hook;
+                }
+                if ($beats_text !== '') {
+                    $script_parts[] = $beats_text;
+                }
+                if ($vo !== '') {
+                    $script_parts[] = 'VOICEOVER: ' . $vo;
+                }
+                if ($cta !== '') {
+                    $script_parts[] = 'CTA: ' . $cta;
+                }
+                $full_script = implode("\n\n", $script_parts);
+                ?>
+                <section class="dpj-pack-channel">
+                    <h4><?php esc_html_e('Short-form video (Reel / Short)', 'dr-purg-social-syndicator'); ?></h4>
+                    <p class="dpj-social-note"><?php esc_html_e('No link — the CTA grows the group/Page. Apply the AI-content label on upload.', 'dr-purg-social-syndicator'); ?></p>
+                    <label><?php esc_html_e('Script', 'dr-purg-social-syndicator'); ?>
+                        <textarea readonly rows="6" id="<?php echo esc_attr($base . 'reel'); ?>"><?php echo esc_textarea($full_script); ?></textarea>
+                    </label>
+                    <?php self::render_pack_copy_button($base . 'reel', __('Copy script', 'dr-purg-social-syndicator')); ?>
+                </section>
+            <?php endif; ?>
+
+            <?php if ($has_community) :
+                $reddit = (string) ($community['reddit_comment'] ?? '');
+                $quora = (string) ($community['quora_answer'] ?? '');
+                $community_link = self::social_utm_url($post_id, 'reddit');
+                ?>
+                <section class="dpj-pack-channel">
+                    <h4><?php esc_html_e('Reddit / Quora answers', 'dr-purg-social-syndicator'); ?></h4>
+                    <p class="dpj-social-note"><?php esc_html_e('General info only. Add the link by hand, only where it adds value, and respect each community\'s self-promo rules.', 'dr-purg-social-syndicator'); ?></p>
+                    <?php if ($reddit !== '') : ?>
+                        <label><?php esc_html_e('Reddit comment', 'dr-purg-social-syndicator'); ?>
+                            <textarea readonly rows="5" id="<?php echo esc_attr($base . 'reddit'); ?>"><?php echo esc_textarea($reddit); ?></textarea>
+                        </label>
+                        <?php self::render_pack_copy_button($base . 'reddit', __('Copy Reddit answer', 'dr-purg-social-syndicator')); ?>
+                    <?php endif; ?>
+                    <?php if ($quora !== '') : ?>
+                        <label><?php esc_html_e('Quora answer', 'dr-purg-social-syndicator'); ?>
+                            <textarea readonly rows="5" id="<?php echo esc_attr($base . 'quora'); ?>"><?php echo esc_textarea($quora); ?></textarea>
+                        </label>
+                        <?php self::render_pack_copy_button($base . 'quora', __('Copy Quora answer', 'dr-purg-social-syndicator')); ?>
+                    <?php endif; ?>
+                    <?php if ($community_link !== '') : ?>
+                        <label><?php esc_html_e('Tracked link (add by hand where it fits)', 'dr-purg-social-syndicator'); ?>
+                            <input type="text" readonly id="<?php echo esc_attr($base . 'communitylink'); ?>" value="<?php echo esc_attr($community_link); ?>">
+                        </label>
+                        <?php self::render_pack_copy_button($base . 'communitylink', __('Copy link', 'dr-purg-social-syndicator')); ?>
+                    <?php endif; ?>
+                </section>
+            <?php endif; ?>
+
+            <?php if ($discover !== '') : ?>
+                <section class="dpj-pack-channel">
+                    <h4><?php esc_html_e('Google Discover hero prompt', 'dr-purg-social-syndicator'); ?></h4>
+                    <p class="dpj-social-note"><?php esc_html_e('Generate a 16:9 hero, set it as the featured image, and keep the page title honest (not the curiosity hook).', 'dr-purg-social-syndicator'); ?></p>
+                    <label><?php esc_html_e('Image prompt', 'dr-purg-social-syndicator'); ?>
+                        <textarea readonly rows="3" id="<?php echo esc_attr($base . 'discover'); ?>"><?php echo esc_textarea($discover); ?></textarea>
+                    </label>
+                    <?php self::render_pack_copy_button($base . 'discover', __('Copy prompt', 'dr-purg-social-syndicator')); ?>
+                </section>
+            <?php endif; ?>
+        </details>
         <?php
     }
 
