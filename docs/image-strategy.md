@@ -31,15 +31,13 @@ The OG crop is the brutal constraint: a 4:5 master keeps only ~42% of its height
 
 ## 3. The tool + settings
 
-**Default generator: Higgsfield Nano Banana 2 / Pro** (via the `higgsfield-generate` skill). The 2026 head-to-head consensus is decisive: Nano Banana wins on exactly the things that betray AI — subsurface skin scattering, individual hair strands in window light, natural undistorted hands, real-camera mood — where GPT Image 2's people read as "a strong digital painting." GPT Image 2's one real edge (≈95% accurate baked text) is **irrelevant here**, because the plugin owns all text. For a relatable-human health-lifestyle blog, photoreal humans are the whole game, so Nano Banana is the default.
+**Default generator (now): Gemini's Nano Banana — FREE, via Google AI Studio (aistudio.google.com), NOT the consumer Gemini app.** "Nano Banana" *is* Google's image model: Nano Banana = **Gemini 2.5 Flash Image**; **Nano Banana Pro = Gemini 3 Pro Image** (2K/4K, best hands — use it for the featured/hero master). It wins on exactly the things that betray AI — real subsurface skin scattering, individual hair strands in window light, natural undistorted hands, real-camera mood — and photoreal humans are the whole game for a relatable health-lifestyle blog. It supports the two ratios we need natively (**4:5** and **16:9**) and Gemini's killer feature: **conversational EDITING** — fix a hand, empty the lower third, remove a stray mark, warm the light, all in follow-up turns (see §9).
 
-Generate the 4:5 at **>=1500x1875** so the plugin's upscale QA never fires.
+**Use Google AI Studio, NOT the Gemini app.** Both are free, but the consumer app stamps a visible "Gemini sparkle" watermark on free-tier images (off-brand on a blog hero). **AI Studio outputs carry only the invisible SynthID (no visible watermark) and allow ~500 images/day** — set aspect ratio in its controls and generate at the highest resolution offered so the plugin never upscales (target ≥1500×1875 for the 4:5 master; Nano Banana Pro's 2K clears this).
 
-**Fallbacks:**
-- **GPT Image 2** (via `higgsfield-product-photoshoot`) — only for the rare person-free object hero (e.g. a mug, a pillow, a glass of water on a windowsill).
-- **Gemini** — free quota-crunch fallback only.
+**The paid upgrade, for serious future work: Higgsfield** (Nano Banana 2/Pro, GPT Image 2, a trained Soul-ID recurring "host" face, Seedance video, the Virality Predictor). Reach for it when you want a recognizable recurring face, batch automation, or video. For the blog's still images today, free Gemini/AI Studio is the *same model* and is enough.
 
-All three embed C2PA/SynthID — don't try to launder it; label honestly per §6.
+All of these embed SynthID — don't try to launder it; label honestly per §6.
 
 ## 4. The upgraded `image_prompt` formula (portrait 4:5)
 
@@ -106,6 +104,20 @@ The strategy passed review against the actual plugin code; fold these in:
 3. **Best-of-N, not regen-on-fail.** Generate 2–3 candidates per master and pick the cleanest; make **hands hidden / out of frame the DEFAULT** (eliminates the highest-probability AI tell outright). The negative-prompt tail is belt-and-suspenders, not the primary control. Optional: a quick vision pass (count fingers / any baked text / >1 face) before an image becomes the source.
 4. **AI disclosure is a checklist line, not memory.** Apply the platform AI-content label where supported (Meta "AI info"; Pinterest auto-labels). **Alt text describes a generic person — never names or credentials them** ("a person at home", never "our expert/doctor"). If a Soul-ID recurring host is ever used (Phase 2), it is only ever "a person at home", never a named author or clinician — the no-fake-authority guardrail holds.
 5. **Keep the two prompts clearly labeled PORTRAIT-MASTER (4:5) vs DISCOVER-ONLY (16:9)**, and never feed the 16:9 image into the local card converter (it crops/upscales badly into the tall FB/Pinterest cards). Also verify once what the live WordPress theme crops the 4:5 hero to.
+
+## 9. The Gemini method — the free default, step by step
+
+Free, repeatable, watermark-free, and the *same model* the strategy recommends. Per article, ~1–2 min:
+
+1. **Open Google AI Studio** (aistudio.google.com) → image generation → model **Nano Banana Pro** (Gemini 3 Pro Image) for the featured/hero, or **Nano Banana** (2.5 Flash Image) for speed. *Use AI Studio, NOT the Gemini app — the app stamps a visible sparkle watermark; AI Studio doesn't.*
+2. **Set aspect ratio = 4:5** (do the Discover hero separately at **16:9**) and the highest resolution offered.
+3. **Paste the draft's `image_prompt` verbatim** → generate. **Best-of-N:** regenerate 2–3 and keep the cleanest.
+4. **Fix tells with Gemini's edit loop instead of rerolling** (its superpower) — reply on the chosen image: *"keep everything the same but make the lower third emptier and softer for text"* · *"fix the left hand to a natural relaxed shape with five fingers"* · *"remove any text or marks"* · *"warm the daylight a touch."* Iterate until it clears the §7 reject checklist.
+5. **Download → set as the WordPress featured image.** The plugin builds the FB/Pinterest/OG cards (OG = centered overlay, no hint, per §8).
+6. **Repeat with `discover_image_prompt` at 16:9** for the Discover hero.
+7. **Disclosure:** SynthID is embedded (honest); apply the platform AI-content label on upload; keep alt text generic — never crediting the person.
+
+Free daily limits are plenty for a monthly batch (AI Studio ~500/day). Want a recurring brand "host" face or video later? That's when Higgsfield (§3) earns its cost.
 
 ---
 
