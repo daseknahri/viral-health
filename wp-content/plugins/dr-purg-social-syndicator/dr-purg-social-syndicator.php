@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.5
+ * Version: 0.7.6
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.5';
+    private const VERSION = '0.7.6';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -1289,7 +1289,8 @@ final class Dr_Purg_Social_Syndicator
         // the metric columns are matched or it would be mistaken for clicks.
         foreach ($header as $index => $name) {
             $key = strtolower(trim((string) $name));
-            if (str_contains($key, 'campaign') || str_contains($key, 'slug') || str_contains($key, 'utm')) {
+            // Localized GA4 exports use the UI language (e.g. French "Campagne de session").
+            if (str_contains($key, 'campaign') || str_contains($key, 'campagne') || str_contains($key, 'slug') || str_contains($key, 'utm')) {
                 $cols['campaign'] = $index;
                 break;
             }
@@ -1303,17 +1304,20 @@ final class Dr_Purg_Social_Syndicator
             $key = strtolower(trim((string) $name));
             // Pages/session must be claimed BEFORE clicks — "views per session"
             // contains "view"/"session" and would otherwise be grabbed as clicks.
-            if ($cols['pps'] < 0 && (str_contains($key, 'per session') || str_contains($key, 'pages/session') || str_contains($key, 'pages per') || str_contains($key, 'screenpageviewspersession') || str_contains($key, 'views per session'))) {
+            // French exports say "Vues par session" → match "par session" too.
+            if ($cols['pps'] < 0 && (str_contains($key, 'per session') || str_contains($key, 'par session') || str_contains($key, 'pages/session') || str_contains($key, 'pages per') || str_contains($key, 'screenpageviewspersession') || str_contains($key, 'views per session'))) {
                 $cols['pps'] = $index;
                 continue;
             }
-            if ($cols['clicks'] < 0 && (str_contains($key, 'click') || str_contains($key, 'session') || str_contains($key, 'user') || str_contains($key, 'view'))) {
+            // Localized: clic(s) (FR clicks), utilisateur (users), vue(s) (views), sessions (same in FR).
+            if ($cols['clicks'] < 0 && (str_contains($key, 'click') || str_contains($key, 'clic') || str_contains($key, 'session') || str_contains($key, 'user') || str_contains($key, 'utilisateur') || str_contains($key, 'view') || str_contains($key, 'vue'))) {
                 $cols['clicks'] = $index;
             }
             if ($cols['rpm'] < 0 && str_contains($key, 'rpm')) {
                 $cols['rpm'] = $index;
             }
-            if ($cols['revenue'] < 0 && (str_contains($key, 'revenue') || str_contains($key, 'earning'))) {
+            // Localized: revenu(s)/recette (FR revenue), gain (FR earnings).
+            if ($cols['revenue'] < 0 && (str_contains($key, 'revenue') || str_contains($key, 'revenu') || str_contains($key, 'earning') || str_contains($key, 'recette') || str_contains($key, 'gain'))) {
                 $cols['revenue'] = $index;
             }
         }
@@ -2395,7 +2399,7 @@ final class Dr_Purg_Social_Syndicator
             <p><?php esc_html_e('Which hooks earned clicks and revenue. Read clicks from Analytics by UTM campaign; record RPM and finalized revenue per post in the Social Editor.', 'dr-purg-social-syndicator'); ?></p>
             <section class="dpj-social-card dpj-perf-import">
                 <h2><?php esc_html_e('Import from CSV', 'dr-purg-social-syndicator'); ?></h2>
-                <p class="dpj-social-note"><?php esc_html_e('Upload a CSV (for example a GA4 export). Rows are matched to posts by a campaign or slug column (the post slug = its utm_campaign). Recognised columns: campaign/slug, clicks/sessions, pages/session, RPM, revenue/earnings. Only the columns present are written.', 'dr-purg-social-syndicator'); ?></p>
+                <p class="dpj-social-note"><?php esc_html_e('Upload a CSV (for example a GA4 export). Rows are matched to posts by a campaign or slug column (the post slug = its utm_campaign). Recognised columns: campaign/slug, clicks/sessions, pages/session, RPM, revenue/earnings — including localized GA4 headers (e.g. French campagne, vues par session, revenus). Only the columns present are written.', 'dr-purg-social-syndicator'); ?></p>
                 <form method="post" enctype="multipart/form-data" action="<?php echo esc_url(add_query_arg(['page' => self::PERF_SLUG], admin_url('admin.php'))); ?>">
                     <?php wp_nonce_field('dpj_social_perf_import', 'dpj_social_perf_nonce'); ?>
                     <input type="file" name="perf_csv" accept=".csv,text/csv" required>
