@@ -308,6 +308,8 @@ function checkPluginContract() {
     /render_image_prompt_metabox/,
     /_dpj_social_image_prompt/,
     /image_prompt/,
+    /aistudio\.google\.com/,
+    /dpj-image-sop/,
   ]);
 
   // Multi-channel pack: the optional bundle fields are stored, not silently

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.7
+ * Version: 0.7.8
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.7';
+    private const VERSION = '0.7.8';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -387,14 +387,38 @@ final class Dr_Purg_Social_Syndicator
     public static function render_image_prompt_metabox(WP_Post $post): void
     {
         $prompt = (string) get_post_meta($post->ID, '_dpj_social_image_prompt', true);
-        if ($prompt === '') {
+        $discover = (string) get_post_meta($post->ID, '_dpj_social_discover_image_prompt', true);
+        if ($prompt === '' && $discover === '') {
             echo '<p class="dpj-social-note">' . esc_html__('No image prompt yet. Import a Claude bundle that includes an "image_prompt" to fill this.', 'dr-purg-social-syndicator') . '</p>';
             return;
         }
         ?>
-        <p><?php esc_html_e('Copy this into your image generator (e.g. Gemini), make a portrait image, then set it as the featured image.', 'dr-purg-social-syndicator'); ?></p>
-        <textarea readonly rows="6" id="dpj-image-prompt" class="widefat code"><?php echo esc_textarea($prompt); ?></textarea>
-        <p><button type="button" class="button" data-dpj-copy="#dpj-image-prompt"><?php esc_html_e('Copy image prompt', 'dr-purg-social-syndicator'); ?></button></p>
+        <div class="dpj-image-sop">
+            <p><strong><?php esc_html_e('Generate it right the first time:', 'dr-purg-social-syndicator'); ?></strong></p>
+            <ol>
+                <li><?php
+                    printf(
+                        /* translators: %s is a link to Google AI Studio. */
+                        esc_html__('Open %s — NOT the Gemini app (the app stamps a visible watermark).', 'dr-purg-social-syndicator'),
+                        '<a href="https://aistudio.google.com" target="_blank" rel="noopener">Google AI Studio</a>'
+                    );
+                ?></li>
+                <li><?php esc_html_e('Model: Nano Banana Pro · aspect ratio 4:5 portrait · highest resolution.', 'dr-purg-social-syndicator'); ?></li>
+                <li><?php esc_html_e('Paste the prompt → generate 2–3 → keep the cleanest. Fix flaws with a follow-up edit ("fix the left hand", "empty the lower third") instead of re-rolling.', 'dr-purg-social-syndicator'); ?></li>
+                <li><?php esc_html_e('REJECT (regenerate) if any: mangled hand/face · any baked text or letters · subject off-center · busy lower third (no room for the overlay) · clinical / scary / sad · off-brand palette · more than one person.', 'dr-purg-social-syndicator'); ?></li>
+                <li><?php esc_html_e('Download → set it as the Featured image. The plugin builds the FB / Pinterest / OG cards from it.', 'dr-purg-social-syndicator'); ?></li>
+            </ol>
+        </div>
+        <?php if ($prompt !== '') : ?>
+            <p><strong><?php esc_html_e('Featured / social master — 4:5 portrait', 'dr-purg-social-syndicator'); ?></strong></p>
+            <textarea readonly rows="6" id="dpj-image-prompt" class="widefat code"><?php echo esc_textarea($prompt); ?></textarea>
+            <p><button type="button" class="button button-primary" data-dpj-copy="#dpj-image-prompt"><?php esc_html_e('Copy image prompt', 'dr-purg-social-syndicator'); ?></button></p>
+        <?php endif; ?>
+        <?php if ($discover !== '') : ?>
+            <p><strong><?php esc_html_e('Google Discover hero — set aspect ratio to 16:9', 'dr-purg-social-syndicator'); ?></strong></p>
+            <textarea readonly rows="4" id="dpj-discover-prompt" class="widefat code"><?php echo esc_textarea($discover); ?></textarea>
+            <p><button type="button" class="button" data-dpj-copy="#dpj-discover-prompt"><?php esc_html_e('Copy Discover prompt', 'dr-purg-social-syndicator'); ?></button></p>
+        <?php endif; ?>
         <?php
     }
 
