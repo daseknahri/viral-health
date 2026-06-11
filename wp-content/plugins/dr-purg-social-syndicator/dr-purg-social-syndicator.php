@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.8
+ * Version: 0.7.9
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.8';
+    private const VERSION = '0.7.9';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -32,8 +32,8 @@ final class Dr_Purg_Social_Syndicator
     private const STATUS_SCHEDULED = 'scheduled';
     private const STATUS_FAILED = 'failed';
     private const STATUS_SKIPPED = 'skipped';
-    private const OVERLAY_WORD_MAX = 12;
-    private const OVERLAY_WORD_IDEAL_MIN = 8;
+    private const OVERLAY_WORD_MAX = 9;
+    private const OVERLAY_WORD_IDEAL_MIN = 5;
     private const OVERLAY_WORD_MIN = 3;
     private const CROP_KEEP_WARN = 0.6;
     private const UPSCALE_WARN = 1.15;
@@ -3083,8 +3083,16 @@ final class Dr_Purg_Social_Syndicator
                 </label>
             </div>
             <p class="dpj-card-preview-actions">
+                <label class="dpj-preview-variant">
+                    <?php esc_html_e('Preview size', 'dr-purg-social-syndicator'); ?>
+                    <select data-dpj-card-preview-variant>
+                        <?php foreach (self::SOCIAL_IMAGE_VARIANTS as $variant_key => $variant_config) : ?>
+                            <option value="<?php echo esc_attr($variant_key); ?>"><?php echo esc_html(sprintf('%1$s (%2$dx%3$d)', (string) $variant_config['label'], (int) $variant_config['width'], (int) $variant_config['height'])); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
                 <button class="button" type="button" data-dpj-card-preview-btn><?php esc_html_e('Preview card', 'dr-purg-social-syndicator'); ?></button>
-                <span class="dpj-social-note"><?php esc_html_e('Renders a Facebook-sized preview from the current image and text, without saving.', 'dr-purg-social-syndicator'); ?></span>
+                <span class="dpj-social-note"><?php esc_html_e('Renders the chosen card size from the current image and text, without saving (OG is centered with no hint).', 'dr-purg-social-syndicator'); ?></span>
             </p>
             <div class="dpj-card-preview" data-dpj-card-preview></div>
             <?php self::render_social_image_qa($post_id); ?>
@@ -4047,16 +4055,24 @@ final class Dr_Purg_Social_Syndicator
         $use_hint = isset($_POST['hint_enable']) && (string) $_POST['hint_enable'] === '1';
         $crop_focus = self::sanitize_crop_focus(isset($_POST['crop_focus']) ? (string) wp_unslash($_POST['crop_focus']) : 'center');
 
-        // Reduced Facebook-card size keeps the payload small; overlay sizing
-        // scales with width, so it matches the full-size render.
-        $width = 540;
-        $height = 675;
+        // Render the chosen card SIZE, scaled down to keep the payload small;
+        // overlay sizing scales with width, so it matches the full-size render
+        // (and the OG variant gets the centered/hint-off treatment automatically).
+        $variant = isset($_POST['variant']) ? sanitize_key((string) wp_unslash($_POST['variant'])) : 'facebook';
+        if (!isset(self::SOCIAL_IMAGE_VARIANTS[$variant])) {
+            $variant = 'facebook';
+        }
+        $variant_config = self::SOCIAL_IMAGE_VARIANTS[$variant];
+        $full_w = max(1, (int) $variant_config['width']);
+        $full_h = max(1, (int) $variant_config['height']);
+        $width = 600;
+        $height = max(1, (int) round($full_h * (600 / $full_w)));
         $temp = wp_tempnam('dpj-social-card-preview.jpg');
         if (!is_string($temp) || $temp === '') {
             wp_send_json_error(['message' => __('Could not create a temporary preview file.', 'dr-purg-social-syndicator')]);
         }
 
-        $rendered = self::render_social_image_jpeg($source_path, $temp, $width, $height, $overlay_text, $use_overlay, 'facebook', $hint_text, $use_hint, $position, $crop_focus);
+        $rendered = self::render_social_image_jpeg($source_path, $temp, $width, $height, $overlay_text, $use_overlay, $variant, $hint_text, $use_hint, $position, $crop_focus);
         if (is_wp_error($rendered)) {
             wp_delete_file($temp);
             wp_send_json_error(['message' => $rendered->get_error_message()]);
@@ -4188,6 +4204,17 @@ final class Dr_Purg_Social_Syndicator
     {
         $position = self::sanitize_overlay_position($position);
         $crop_focus = self::sanitize_crop_focus($crop_focus);
+        // The OG / Reddit link-unfurl card (1200x630) is too short to stack a
+        // 3-line hook AND the bottom hint without colliding under overlapping
+        // scrims and silently ellipsis-truncating the hook. The "link in first
+        // comment" hint is a Facebook-comment instruction, meaningless on a
+        // Reddit/link preview, so for OG we always center the overlay (lands in
+        // the OG center safe zone) and drop the hint. Facebook (bottom + hint)
+        // and Pinterest are untouched.
+        if ($variant === 'og') {
+            $position = 'center';
+            $use_hint = false;
+        }
         if (!function_exists('imagecreatetruecolor')) {
             return new WP_Error('dpj_social_gd_missing', __('The PHP GD image extension is required to generate social image copies.', 'dr-purg-social-syndicator'));
         }
@@ -4285,7 +4312,7 @@ final class Dr_Purg_Social_Syndicator
             return '';
         }
 
-        $trimmed = wp_trim_words($text, 12, '');
+        $trimmed = wp_trim_words($text, self::OVERLAY_WORD_MAX, '');
         return trim($trimmed, " \t\n\r\0\x0B-.,:;|");
     }
 
@@ -4382,7 +4409,7 @@ final class Dr_Purg_Social_Syndicator
                     'level' => 'warning',
                     'text' => sprintf(
                         /* translators: %d: overlay word count. */
-                        __('Overlay text is only %d words; a curiosity hook of 8 to 12 words reads better.', 'dr-purg-social-syndicator'),
+                        __('Overlay text is only %d words; a curiosity hook of 5 to 8 words reads better.', 'dr-purg-social-syndicator'),
                         $words
                     ),
                 ];
@@ -4391,7 +4418,7 @@ final class Dr_Purg_Social_Syndicator
                     'level' => 'notice',
                     'text' => sprintf(
                         /* translators: %d: overlay word count. */
-                        __('Overlay text is %d words; 8 to 12 words usually makes a stronger hook.', 'dr-purg-social-syndicator'),
+                        __('Overlay text is %d words; 5 to 8 words usually makes a stronger hook.', 'dr-purg-social-syndicator'),
                         $words
                     ),
                 ];
@@ -4594,7 +4621,7 @@ final class Dr_Purg_Social_Syndicator
      */
     private static function card_scrim_strength(): float
     {
-        return self::env_int('SOCIAL_CARD_SCRIM', 28, 0, 60) / 100;
+        return self::env_int('SOCIAL_CARD_SCRIM', 44, 0, 60) / 100;
     }
 
     /**
@@ -4771,8 +4798,8 @@ final class Dr_Purg_Social_Syndicator
             if (count($lines) <= $max_lines) {
                 break;
             }
-            $headline_size -= 6;
-        } while ($headline_size > 48);
+            $headline_size -= 2;
+        } while ($headline_size > max(40, (int) round($target_width * 0.06)));
 
         $lines = self::limit_ttf_lines($lines, $max_lines, $bold_font, $headline_size, $max_width);
         $line_height = (int) round($headline_size * 1.04);
@@ -4782,7 +4809,8 @@ final class Dr_Purg_Social_Syndicator
         $block_height = $brand_size + $brand_gap + (count($lines) * $line_height) + $accent_gap + $accent_height;
         $brand_baseline = max($brand_size + 16, self::overlay_block_top($target_height, $block_height, $position) + $brand_size);
 
-        self::draw_centered_ttf_text($canvas, self::overlay_display_text(self::card_brand()), $regular_font, $brand_size, $brand_baseline, $target_width, $sage !== false ? $sage : $white, $outline, $shadow, 2);
+        $brand_color = ($variant === 'og') ? $white : ($sage !== false ? $sage : $white);
+        self::draw_centered_ttf_text($canvas, self::overlay_display_text(self::card_brand()), $regular_font, $brand_size, $brand_baseline, $target_width, $brand_color, $outline, $shadow, 2);
 
         $headline_baseline = $brand_baseline + $brand_gap + $headline_size;
         foreach ($lines as $line) {

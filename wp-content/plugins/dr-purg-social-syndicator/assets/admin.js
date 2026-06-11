@@ -124,7 +124,8 @@
       overlay_pos: value('select[name="local_overlay_pos"]'),
       crop_focus: value('select[name="local_crop_focus"]'),
       hint_text: value('input[name="local_hint_text"]'),
-      hint_enable: checked('input[name="local_hint_enable"]')
+      hint_enable: checked('input[name="local_hint_enable"]'),
+      variant: value('[data-dpj-card-preview-variant]') || 'facebook'
     }).done(function (response) {
       if (response && response.success && response.data && response.data.image) {
         const img = document.createElement('img');
