@@ -121,4 +121,82 @@ Free daily limits are plenty for a monthly batch (AI Studio ~500/day). Want a re
 
 ---
 
+# Dr Purg Jr — The Content-to-Thumbnail Method (Scroll-Stopper Mode)
+
+*This is the GROWTH-PHASE image method. It sits alongside §4's calm-editorial canon (now the "brand mode"). Use scroll-stopper mode now, while the brand is unknown and every post has to earn the click cold. See §two-mode note at the end for when to switch back.*
+
+## Why this exists (the 2026 evidence)
+
+The single best 4:5 master is no longer a generic calm person looking at window light — it's the **one relatable "caught moment" from the article itself**, made visible. The research is unambiguous for 2026:
+
+- A face showing a genuine, mid-arousal emotion (surprise, amusement, mild relief) gets ~**20% higher CTR**, because humans recognize a face/emotion in ~13ms — before they can read a single word. ([thumbnailtest](https://thumbnailtest.com/guides/psychology-of-youtube-thumbnails/), [futuramo](https://futuramo.com/blog/effective-youtube-video-thumbnail-psychology-best-practices/))
+- The psychology has shifted from **"shock me" to "relate to me."** Authentic, candid micro-expressions now beat both staged drama and hyper-polished AI; real-person faces tested **47% higher CTR** than generic stock. The 2026 trend is literally called "Proof of Human." ([bananathumbnail trends](https://blog.bananathumbnail.com/2026-thumbnail-trends/), [bananathumbnail psychology](https://blog.bananathumbnail.com/thumbnail-psychology-4/))
+- Winners use **one dominant subject, 2–3 colors, a single legible "what's happening here"** — legible at the 120px mobile preview where the decision is actually made. ([nexlev](https://www.nexlev.io/youtube-thumbnail-types), [thumbnailmaker](https://thumbnailmaker.ai/best-youtube-thumbnail-styles))
+- The **curiosity gap** is the engine: show a person clearly *reacting* to something the viewer can't yet explain, and the unanswered "wait — why?" is the click. The article is the answer. ([graphaize](https://graphaize.com/psychology-of-thumbnails-how-to-stop-the-scroll-and-get-the-click/))
+- Vertical 4:5 (1080×1350) owns up to **45% more mobile screen** and lifts CTR 12–22% — which is exactly our master ratio, so none of the pipeline changes. ([adstellar](https://www.adstellar.ai/blog/best-image-size-for-facebook))
+
+**The reframe:** we are not illustrating the topic, we are casting the reader as the person in the photo at the exact second the article's question occurs to them. "That's so me" → click.
+
+## Step 1 — Mine the article for the ONE caught moment
+
+Don't picture the *subject* (a stomach, sleep, hiccups). Picture the **everyday scene where a real person would suddenly wonder about it**, and the **micro-reaction on their face**. Ask the content these four questions, in order:
+
+1. **The trigger scene:** "In what ordinary, specific US-everyday place/situation does a normal person actually *notice* this body thing happen?" (Library, work meeting, car at a red light, kitchen at 2am, on the couch mid-show, in line at the store, brushing teeth.) Specific beats generic — a *library* out-stops a blank "room."
+2. **The honest reaction:** "What's the small, real, *non-alarmed* face they'd make in that second?" Pick from our safe emotion palette: pleasant surprise, amused embarrassment, gentle curiosity, quiet relief, a little 'huh, weird.' Name ONE. (The exemplar = surprised-amused-embarrassed half-smile.)
+3. **The visible curiosity gap:** "What is the person clearly *reacting to* that the viewer can see but can't yet explain — so they need the article?" (Glancing down at their own belly; pausing mid-yawn; touching their own cheek; looking at the clock.) The gesture points at the mystery; the article is the answer.
+4. **The relatability test:** "Will a scrolling stranger think *'wait, that's literally me'* in under a second?" If the moment is universal and slightly funny/human, keep it. If it needs a caption to make sense, it's wrong — go back to Q1.
+
+Output of Step 1 = one line: **[everyday scene] + [one safe reaction] + [the body-gesture that makes the question visible] + [one brand-accent color object].**
+*Example: "young adult at a quiet library table, surprised-amused half-smile, glancing down at own belly, muted-burgundy cardigan as the anchor."*
+
+## Step 2 — The reusable SCROLL-STOPPER PROMPT FORMULA
+
+Fill the five brackets from Step 1; paste the rest verbatim. This matches the exemplar's energy (punchy, high-contrast, candid, mid-moment) while staying inside our 4:5 overlay pipeline and guardrails.
+
+```
+Candid, photoreal editorial photograph with a punchy, vivid, high-contrast look, of [ONE relatable everyday US adult, ~20s–50s] in [SPECIFIC EVERYDAY SCENE from the article — e.g. a quiet shared work table, a car at a red light, a cozy couch mid-show], caught mid-moment [THE BODY-GESTURE THAT MAKES THE QUESTION VISIBLE — e.g. glancing down toward their own stomach, pausing mid-yawn, lightly touching their own cheek], with a genuine [ONE SAFE REACTION: surprised, amused, slightly embarrassed half-smile / gently curious 'huh, weird' look / quietly relieved soft smile] — the universal '[THE TINY RELATABLE THOUGHT — e.g. wait, was that my stomach?]' moment. The expressive, reacting face is the clear focal point, caught mid-reaction, not posed. Subject centered horizontally in the middle band of the frame, filling about 50–60% of the image, with headroom above; the lower third kept soft, evenly lit, and low-detail as clean negative space for a text overlay; nothing important in the top or bottom fifth, nothing critical in the outer tenth left or right. Bright, crisp natural daylight with strong but flattering contrast so the subject pops off a softly blurred background; one bold pop of [muted-burgundy OR sage-green] in the scene as the single color anchor; warm, modern, relatable US setting, uncluttered. 35mm, f/2.2, shallow depth of field, crisp realistic skin texture with visible pores and faint expression lines, lively and candid, energetic but not chaotic, no stiff stock-photo look. Portrait orientation, 4:5, high resolution. No text, no words, no letters, no logos, no watermark, no signage, no numbers. One person only. Natural, relaxed, undistorted hands and faces, correct number of fingers; hands relaxed or out of frame; no clinical, hospital, lab-coat, medical, or before/after imagery; no charts; a genuine, warm, slightly funny, non-alarmed human expression.
+```
+
+**The five fill-in slots:** the adult · the specific scene · the body-gesture · the one safe reaction (+ its tiny relatable thought) · the one accent color. Everything else is locked canon — paste it identically every time so the feed still reads as one brand.
+
+**The non-negotiable tail (every render):** center-safe subject (survives all three crops) · clean soft lower-third (overlay lands on space, never the face) · one brand accent (burgundy *or* sage, never both) · the full no-text / no-tell / no-clinical clause.
+
+**Pipeline pairing (unchanged):** `crop_focus = top`, `overlay_pos = bottom`, FB bottom hint `LINK IN FIRST COMMENT`; OG/Reddit card = overlay centered, hint OFF (§8). Best-of-N: generate 2–3, keep the cleanest, fix tells with Gemini's edit loop. Run the §7 reject checklist before it ships, plus the two scroll-stopper additions below.
+
+## Step 3 — The bright line: scroll-stopper vs clickbait / fear / clinical
+
+Stop at "wait, that's me," never at "something is wrong with me." The line is decidable:
+
+| KEEP (scroll-stop, honest) | KILL (clickbait / fear / clinical) |
+|---|---|
+| Pleasant surprise, amusement, mild embarrassment, gentle curiosity, quiet relief | Pain, fear, alarm, distress, shock, crying, panic, grimace |
+| Reacting to a normal, universal body moment ("was that my stomach?") | Reacting to a symptom as a threat ("is this serious?!") |
+| One bold color pop + strong-but-*flattering* contrast | Garish saturation, red-alert/danger coding, blaring arrows |
+| Everyday home/work/car/store scene | Hospital, lab coat, exam room, pills, charts, before/after body shots |
+| Pointing-gesture at a curiosity the article answers | Pointing at a body part as if diagnosing the viewer |
+| "That's so me" recognition | "That could be YOU and it's bad" exaggeration |
+
+**The two-second gut check:** *Would this make a calm person smile and lean in — or make an anxious person's stomach drop?* If it's the second one, it fails the brand even if it would out-click. Curiosity is allowed to be high-energy; the emotion is never allowed to be negative. Two extra reject lines for this mode, on top of §7:
+
+- [ ] **Reaction reads as distress, not delight** — any frown/wince/wide-eyed alarm → regenerate to a lighter beat.
+- [ ] **Implies a personal diagnosis** — the gesture/scene frames the body thing as *your problem* rather than a shared "huh, interesting" → reframe to general/relatable.
+
+## The two-mode note (which mode, when)
+
+We keep **both** prompt formulas and choose per phase — same pipeline, same 4:5 master, same overlay, same guardrails; only the energy differs.
+
+- **Scroll-Stopper Mode (NOW — growth phase, this section's formula).** Brand is unknown; every post earns the click cold in a crowded feed. Mine the article for the *caught reactive moment*, punchy high-contrast, 35mm f/2.2, face at 50–60%, one bold color pop, a tiny visible story. This is what the operator loved and what the 2026 evidence rewards while you're a stranger in the feed.
+- **Calm-Editorial / Brand Mode (LATER — §4 formula).** Once "Dr Purg Jr" is a recognized name people already trust and seek out, dial back to the calm, gently-curious editorial canon (50mm f/2.0, softer warm window light, ~40–55% subject). At that point recognition does the stopping work and the calmer, more authoritative look protects long-term trust.
+
+**Default today = Scroll-Stopper.** Switch a given topic to Brand Mode only when (a) the brand is established, or (b) a topic is too sensitive for an amused beat and a calm, respectful frame serves it better. Both modes obey the identical no-text / no-clinical / one-person / center-safe / clean-lower-third rules — only the *feeling* on the face and the *contrast* on the photo change.
+
+---
+
+**Sources:** [thumbnailtest — Psychology of YouTube Thumbnails 2026](https://thumbnailtest.com/guides/psychology-of-youtube-thumbnails/) · [futuramo — Thumbnail Psychology & Best Practice](https://futuramo.com/blog/effective-youtube-video-thumbnail-psychology-best-practices/) · [bananathumbnail — 2026 Thumbnail Trends ("Proof of Human")](https://blog.bananathumbnail.com/2026-thumbnail-trends/) · [bananathumbnail — 9 Viral Thumbnail Psychology Secrets](https://blog.bananathumbnail.com/thumbnail-psychology-4/) · [nexlev — Thumbnail Types That Boost Views 2026](https://www.nexlev.io/youtube-thumbnail-types) · [thumbnailmaker.ai — Best Thumbnail Styles for High CTR 2026](https://thumbnailmaker.ai/best-youtube-thumbnail-styles) · [graphaize — Psychology of Thumbnails: Stop the Scroll](https://graphaize.com/psychology-of-thumbnails-how-to-stop-the-scroll-and-get-the-click/) · [adstellar — Best Image Size for Facebook 2026](https://www.adstellar.ai/blog/best-image-size-for-facebook) · [madpin — Trending Pinterest Pin Styles 2026](https://madpinmedia.com/trending-design-styles-for-pinterest-pins/)
+
+*Target file for this section: `c:\Users\user\OneDrive\Documents\viral-health\docs\image-strategy.md` (insert as a new "Scroll-Stopper Mode" section; it complements §4's calm canon, which becomes the "brand mode" referenced above). It also serves directly as the brief for `/draft-batch`, `/draft-month`, and the claude.ai Editor Project when they emit the `image_prompt` field.*
+
+
+---
+
 *Provenance: synthesized 2026-06-10 by a 6-agent workflow (4 research lenses — thumbnail mechanics, AI prompt-craft, brand/safety, the live plugin pipeline — → strategy → adversarial mobile/AI-tell skeptic, approved with the fixes above). Companion to docs/social-syndicator.md (the card converter) and the Master Bundle Prompt in docs/chatgpt-prompt-pack.md (the image_prompt / discover_image_prompt fields this upgrades).*
