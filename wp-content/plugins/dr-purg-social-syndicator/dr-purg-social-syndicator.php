@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Dr Purg Jr. Social Syndicator
  * Description: Creates per-post social packages and posts reviewed Facebook Page updates through the Graph API.
- * Version: 0.7.9
+ * Version: 0.7.10
  * Author: Site tools
  * Text Domain: dr-purg-social-syndicator
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 final class Dr_Purg_Social_Syndicator
 {
-    private const VERSION = '0.7.9';
+    private const VERSION = '0.7.10';
     private const SETTINGS_OPTION = 'dpj_social_syndicator_settings';
     private const CALENDAR_OPTION = 'dpj_social_calendar';
     private const CALENDAR_ERROR_OPTION = 'dpj_social_calendar_error';
@@ -847,19 +847,24 @@ final class Dr_Purg_Social_Syndicator
             update_post_meta($post_id, '_dpj_social_image_prompt', $image_prompt);
         }
 
-        // Optional multi-channel fields (added with the growth-strategy build).
-        // The 16:9 Discover hero prompt is a plain string; pin_set / reel_script /
-        // community_answer are structured DRAFT assets the operator copies out by
-        // hand (never rendered on the public page), stored as sanitized JSON so the
-        // Cockpit can surface them later. All are optional: absent = nothing stored.
+        // Optional multi-channel + rendition fields (the content-machine build).
+        // discover_image_prompt and newsletter_blurb are plain strings; pin_set /
+        // reel_script / community_answer / x_thread are structured DRAFT assets the
+        // operator copies out by hand (never rendered on the public page), stored as
+        // sanitized JSON so the Cockpit can surface them. All optional: absent = nothing.
         $discover_image_prompt = self::clean_ai_text((string) ($bundle['discover_image_prompt'] ?? ''), 1500);
         if ($discover_image_prompt !== '') {
             update_post_meta($post_id, '_dpj_social_discover_image_prompt', $discover_image_prompt);
+        }
+        $newsletter_blurb = self::clean_ai_text((string) ($bundle['newsletter_blurb'] ?? ''), 800);
+        if ($newsletter_blurb !== '') {
+            update_post_meta($post_id, '_dpj_social_newsletter_blurb', $newsletter_blurb);
         }
         $structured = [
             '_dpj_social_pin_set' => $bundle['pin_set'] ?? null,
             '_dpj_social_reel_script' => $bundle['reel_script'] ?? null,
             '_dpj_social_community_answer' => $bundle['community_answer'] ?? null,
+            '_dpj_social_x_thread' => $bundle['x_thread'] ?? null,
         ];
         foreach ($structured as $meta_key => $raw) {
             $clean = self::sanitize_structured_field($raw);
@@ -2021,19 +2026,22 @@ final class Dr_Purg_Social_Syndicator
         $pins = self::decode_pack_field($post_id, '_dpj_social_pin_set');
         $reel = self::decode_pack_field($post_id, '_dpj_social_reel_script');
         $community = self::decode_pack_field($post_id, '_dpj_social_community_answer');
+        $thread = self::decode_pack_field($post_id, '_dpj_social_x_thread');
         $discover = (string) get_post_meta($post_id, '_dpj_social_discover_image_prompt', true);
+        $newsletter = (string) get_post_meta($post_id, '_dpj_social_newsletter_blurb', true);
 
         $has_pins = is_array($pins) && $pins !== [];
         $has_reel = is_array($reel) && $reel !== [];
         $has_community = is_array($community) && $community !== [];
-        if (!$has_pins && !$has_reel && !$has_community && $discover === '') {
+        $has_thread = is_array($thread) && $thread !== [];
+        if (!$has_pins && !$has_reel && !$has_community && !$has_thread && $discover === '' && $newsletter === '') {
             return;
         }
 
         $base = 'dpj-pack-' . $post_id . '-';
         ?>
         <details class="dpj-cockpit-pack">
-            <summary><?php esc_html_e('Multi-channel pack (Pinterest · short-form video · Reddit/Quora · Discover)', 'dr-purg-social-syndicator'); ?></summary>
+            <summary><?php esc_html_e('Multi-channel pack (Pinterest · video · Reddit/Quora · Discover · newsletter · X)', 'dr-purg-social-syndicator'); ?></summary>
 
             <?php if ($has_pins) :
                 $pin_link = self::social_utm_url($post_id, 'pinterest');
@@ -2160,6 +2168,37 @@ final class Dr_Purg_Social_Syndicator
                     </label>
                     <?php self::render_pack_copy_button($base . 'discover', __('Copy prompt', 'dr-purg-social-syndicator')); ?>
                 </section>
+            <?php endif; ?>
+            <?php if ($newsletter !== '') : ?>
+                <section class="dpj-pack-channel">
+                    <h4><?php esc_html_e('Newsletter blurb (owned audience)', 'dr-purg-social-syndicator'); ?></h4>
+                    <p class="dpj-social-note"><?php esc_html_e('Paste into your email tool and add the article link there. Activate the newsletter on its own first (unsubscribe + sender identity).', 'dr-purg-social-syndicator'); ?></p>
+                    <label><?php esc_html_e('Email blurb', 'dr-purg-social-syndicator'); ?>
+                        <textarea readonly rows="4" id="<?php echo esc_attr($base . 'newsletter'); ?>"><?php echo esc_textarea($newsletter); ?></textarea>
+                    </label>
+                    <?php self::render_pack_copy_button($base . 'newsletter', __('Copy blurb', 'dr-purg-social-syndicator')); ?>
+                </section>
+            <?php endif; ?>
+            <?php if ($has_thread) :
+                $thread_lines = [];
+                foreach (array_values($thread) as $ti => $tpost) {
+                    if (!is_string($tpost) || trim($tpost) === '') {
+                        continue;
+                    }
+                    $thread_lines[] = ($ti + 1) . '/ ' . trim($tpost);
+                }
+                $thread_text = implode("\n\n", $thread_lines);
+                if ($thread_text !== '') :
+                ?>
+                <section class="dpj-pack-channel">
+                    <h4><?php esc_html_e('X thread', 'dr-purg-social-syndicator'); ?></h4>
+                    <p class="dpj-social-note"><?php esc_html_e('General info, no link in the posts (on-platform brand). Post 1 is the hook; the last is a calm follow CTA.', 'dr-purg-social-syndicator'); ?></p>
+                    <label><?php esc_html_e('Thread', 'dr-purg-social-syndicator'); ?>
+                        <textarea readonly rows="6" id="<?php echo esc_attr($base . 'thread'); ?>"><?php echo esc_textarea($thread_text); ?></textarea>
+                    </label>
+                    <?php self::render_pack_copy_button($base . 'thread', __('Copy thread', 'dr-purg-social-syndicator')); ?>
+                </section>
+                <?php endif; ?>
             <?php endif; ?>
         </details>
         <?php

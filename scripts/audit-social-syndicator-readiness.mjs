@@ -320,6 +320,8 @@ function checkPluginContract() {
     /_dpj_social_pin_set/,
     /_dpj_social_reel_script/,
     /_dpj_social_community_answer/,
+    /_dpj_social_newsletter_blurb/,
+    /_dpj_social_x_thread/,
     /wp_json_encode/,
   ]);
 
