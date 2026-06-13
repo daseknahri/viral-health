@@ -37,6 +37,7 @@ Traffic comes from the operator posting article links in **Facebook health group
 ## Where the thinking lives (read these for detail)
 - **`docs/operating-doctrine.md` — START HERE: what we want and the easiest way to run it (FB Groups + Pinterest only; bank a month in one ~90-min session; Claude drafts, human approves + posts).**
 - `docs/growth-strategy.md` — the research-backed channel strategy (what/why); `docs/build-plan.md` — the engineering roadmap (phases).
+- `docs/content-machine-strategy.md` — the EXPANSION path: one topic → many platform-native renditions (on-platform vs drive-to-site), the legitimacy line (signal/template → ORIGINAL, never translate-and-repost), the Arabic/MENA play, and the review-first automation design. Governed by operating-doctrine.md (don't re-open cut channels until the 2-channel base is stable).
 - `docs/go-live-setup.md` — turn each feature on (env, tokens, tests).
 - `docs/social-syndicator.md` — the plugin reference.
 - `docs/fb-click-playbook.md` — the click strategy + **canonical topic rubric** (the single source of truth for scoring; keep `/find-topics`, `/draft-batch`, and the Project aligned to it).
